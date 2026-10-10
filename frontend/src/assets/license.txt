@@ -1,0 +1,11 @@
+Model Information:
+* title:	packaged meat
+* source:	https://sketchfab.com/3d-models/packaged-meat-1ee98a9e9c144c49b0735ee948930dfa
+* author:	vicente betoret ferrero (https://sketchfab.com/deathcow)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "packaged meat" (https://sketchfab.com/3d-models/packaged-meat-1ee98a9e9c144c49b0735ee948930dfa) by vicente betoret ferrero (https://sketchfab.com/deathcow) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
