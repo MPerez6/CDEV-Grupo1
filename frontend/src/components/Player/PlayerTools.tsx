@@ -128,13 +128,42 @@ export const AtizadorModel: React.FC = () => (
   </group>
 );
 
+// Modelo procedimental de cepillo parrillero de alambre para desoxidar y limpiar los hierros
+export const CepilloModel: React.FC = () => (
+  <group rotation={[0.3, 0.1, -0.1]}>
+    {/* Mango largo de madera */}
+    <mesh position={[0, -0.35, 0]} castShadow>
+      <cylinderGeometry args={[0.018, 0.022, 0.45, 12]} />
+      <meshStandardMaterial color="#653b1e" roughness={0.8} metalness={0.05} />
+    </mesh>
+
+    {/* Bloque cabezal del cepillo */}
+    <mesh position={[0, 0.02, 0]} castShadow>
+      <boxGeometry args={[0.1, 0.28, 0.05]} />
+      <meshStandardMaterial color="#4a2812" roughness={0.7} metalness={0.1} />
+    </mesh>
+
+    {/* Cerdas duras de alambre de acero / bronce */}
+    <mesh position={[0, 0.02, 0.04]} castShadow>
+      <boxGeometry args={[0.08, 0.25, 0.035]} />
+      <meshStandardMaterial color="#b89758" roughness={0.5} metalness={0.8} />
+    </mesh>
+
+    {/* Raspador metálico delantero */}
+    <mesh position={[0, 0.17, 0.015]} castShadow>
+      <boxGeometry args={[0.09, 0.025, 0.008]} />
+      <meshStandardMaterial color="#777777" roughness={0.3} metalness={0.9} />
+    </mesh>
+  </group>
+);
+
 export const PlayerTools: React.FC = () => {
   const selectedTool = useAsadoStore((state) => state.selectedTool);
   const stage = useAsadoStore((state) => state.stage);
   const toolGroupRef = useRef<Group>(null);
   const targetPos = useRef(new Vector3());
 
-  // En cada frame, sincronizamos sutilmente la herramienta con el campo de visión del asador (POV)
+  // En cada frame, sincronizamos suavemente la herramienta con el campo de visión del asador (POV)
   useFrame(({ camera, pointer }) => {
     if (!toolGroupRef.current || stage === 'menu') return;
 
@@ -160,6 +189,8 @@ export const PlayerTools: React.FC = () => {
         return <PalaModel />;
       case 'atizador':
         return <AtizadorModel />;
+      case 'cepillo':
+        return <CepilloModel />;
       default:
         return <TenedorModel />;
     }

@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, Center } from '@react-three/drei';
 import { RigidBody, RapierRigidBody } from '@react-three/rapier';
 import { Mesh, ShaderMaterial, Color } from 'three';
 import { useAsadoStore, MeatItem } from '../../store/useAsadoStore';
@@ -68,9 +68,9 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       fragmentShader,
       uniforms: {
         uCookLevel: { value: meat.cookLevel },
-        uRawColor: { value: new Color('#9e2a2b') },
-        uCookedColor: { value: new Color('#52321c') },
-        uBurntColor: { value: new Color('#151110') }
+        uRawColor: { value: new Color('#a3282b') },
+        uCookedColor: { value: new Color('#4f2e18') },
+        uBurntColor: { value: new Color('#161210') }
       }
     });
   }, []);
@@ -144,7 +144,6 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       position={meat.position}
     >
       <group
-        scale={[0.018, 0.018, 0.018]}
         onClick={handleMeatClick}
         onPointerOver={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
@@ -154,7 +153,9 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
           document.body.style.cursor = 'auto';
         }}
       >
-        <primitive object={clonedScene} />
+        <Center scale={0.3}>
+          <primitive object={clonedScene} />
+        </Center>
       </group>
     </RigidBody>
   );

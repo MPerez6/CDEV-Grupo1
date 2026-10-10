@@ -9,13 +9,23 @@ export const GameUI: React.FC = () => {
   const meats = useAsadoStore((state) => state.meats);
   const addMeat = useAsadoStore((state) => state.addMeat);
 
+  // Estados del Fogón y Parrilla
+  const fogonStage = useAsadoStore((state) => state.fogonStage);
+  const fogonProgress = useAsadoStore((state) => state.fogonProgress);
+  const fogonEmbersCount = useAsadoStore((state) => state.fogonEmbersCount);
+  const carriedEmbersCount = useAsadoStore((state) => state.carriedEmbersCount);
+  const rustLevel = useAsadoStore((state) => state.rustLevel);
+  const isClean = useAsadoStore((state) => state.isClean);
+  const colocarPapelYFosforo = useAsadoStore((state) => state.colocarPapelYFosforo);
+  const encenderFogon = useAsadoStore((state) => state.encenderFogon);
+
   const handleStartGame = () => {
-    // Si no hay carnes en la parrilla al comenzar, añadimos el primer corte con ID único
+    // Si no hay carnes en la parrilla al comenzar, añadimos el corte asegurado
     if (meats.length === 0) {
       addMeat({
-        id: generateUniqueMeatId('vacio'),
-        cut: 'Vacío Pampeano',
-        position: [0, 0.65, 0]
+        id: 'corte-tira-base',
+        cut: 'Tira de Asado Criolla',
+        position: [0, 0.45, 0]
       });
     }
     setStage('playing');
@@ -25,13 +35,13 @@ export const GameUI: React.FC = () => {
     const cuts = ['Vacío Pampeano', 'Tira de Asado', 'Entraña Fina', 'Bife de Chorizo'];
     const randomCut = cuts[Math.floor(Math.random() * cuts.length)];
     // Posición aleatoria sobre la parrilla
-    const posX = (Math.random() - 0.5) * 1.8;
-    const posZ = (Math.random() - 0.5) * 1.2;
+    const posX = (Math.random() - 0.5) * 1.6;
+    const posZ = (Math.random() - 0.5) * 1.0;
 
     addMeat({
       id: generateUniqueMeatId('corte'),
       cut: randomCut,
-      position: [posX, 0.75, posZ]
+      position: [posX, 0.55, posZ]
     });
   };
 
@@ -47,16 +57,16 @@ export const GameUI: React.FC = () => {
           <div style={styles.divider} />
 
           <p style={styles.menuDescription}>
-            El fuego de quebracho está vivo en el fondo del quincho pampeano,
-            el pampero sopla suave y los fierros reclaman la carne.
-            Tomá el control de las brasas, empuñá los utensilios del asador y honrá el ritual.
+            El fuego de quebracho reclama su lugar en el fogonero,
+            los hierros esperan el cepillo curador y la carne aguarda el calor de la brasa pampeana.
+            Dominá el fuego, curá la parrilla y serví el asado perfecto.
           </p>
 
           <div style={styles.loreBox}>
             <span style={styles.loreIcon}>🥩</span>
             <div style={styles.loreText}>
-              <strong>Mandamiento del Asador:</strong> El hueso primero al fuego, la paciencia como virtud
-              y la sal parrillera antes de tirar el corte.
+              <strong>Mandamiento Criollo:</strong> El hueso primero al fuego, la sal parrillera
+              a tiempo y las brasas bien repartidas bajo los fierros.
             </div>
           </div>
 
@@ -84,7 +94,35 @@ export const GameUI: React.FC = () => {
         </div>
 
         <div style={styles.infoBadge}>
-          Cortes al fuego: <strong>{meats.length}</strong>
+          Cortes: <strong>{meats.length}</strong>
+        </div>
+
+        {/* Estado del Fogonero */}
+        <div style={styles.fogonBadge}>
+          {fogonStage === 'sin_fuego' && (
+            <button style={styles.actionPill} onClick={colocarPapelYFosforo}>
+              🪵 Colocar Papel y Fósforo
+            </button>
+          )}
+          {fogonStage === 'con_papel' && (
+            <button style={styles.actionPillHot} onClick={encenderFogon}>
+              🔥 Encender Fogonero
+            </button>
+          )}
+          {fogonStage === 'encendido' && (
+            <span>🔥 Ardiendo: {Math.round(fogonProgress * 100)}%</span>
+          )}
+          {fogonStage === 'brasas_listas' && (
+            <span>
+              ✨ Brasas en fogón: <strong>{fogonEmbersCount}</strong>
+              {carriedEmbersCount > 0 && ` | En pala: ${carriedEmbersCount}`}
+            </span>
+          )}
+        </div>
+
+        {/* Estado de limpieza de parrilla */}
+        <div style={styles.infoBadge}>
+          Fierros: <strong>{isClean ? 'Curados / Limpios' : `${Math.round((1 - rustLevel) * 100)}% Limpio`}</strong>
         </div>
 
         <button
@@ -104,27 +142,27 @@ export const GameUI: React.FC = () => {
         </button>
       </header>
 
-      {/* Cartel de ayuda rápida */}
+      {/* Cartel de ayuda rápida contextual */}
       <div style={styles.tipBox}>
         {selectedTool === 'tenedor' && (
-          <span>🍴 <strong>Tenedor:</strong> Hacé click sobre el corte para pincharlo y darlo vuelta.</span>
+          <span>🍴 <strong>Tenedor:</strong> Hacé click sobre la carne para pincharla y darla vuelta.</span>
         )}
         {selectedTool === 'pala' && (
-          <span>🪵 <strong>Pala:</strong> Equipada para acarrear y acomodar brasas incandescentes.</span>
+          <span>🪵 <strong>Pala:</strong> Hacé click en el fogón para cargar brasas y click bajo la parrilla para sembrarlas.</span>
         )}
         {selectedTool === 'atizador' && (
-          <span>🦯 <strong>Atizador:</strong> Equipado para quebrar leña y nivelar la corona de calor.</span>
+          <span>🦯 <strong>Atizador:</strong> Hacé click en el fogonero o bajo la parrilla para esparcir el colchón térmico.</span>
+        )}
+        {selectedTool === 'cepillo' && (
+          <span>🧹 <strong>Cepillo Parrillero:</strong> Hacé click o arrastrá sobre los hierros para remover el óxido y curar la parrilla.</span>
         )}
       </div>
 
-      {/* Selector de herramientas en la parte inferior */}
+      {/* Selector de herramientas criollas en la parte inferior */}
       <div style={styles.toolbarWrapper}>
         <div style={styles.toolbar}>
           <button
-            style={{
-              ...styles.toolButton,
-              ...(selectedTool === 'tenedor' ? styles.toolButtonActive : {})
-            }}
+            style={getToolButtonStyle(selectedTool === 'tenedor')}
             onClick={() => setSelectedTool('tenedor')}
           >
             <span style={styles.toolIcon}>🍴</span>
@@ -133,10 +171,7 @@ export const GameUI: React.FC = () => {
           </button>
 
           <button
-            style={{
-              ...styles.toolButton,
-              ...(selectedTool === 'pala' ? styles.toolButtonActive : {})
-            }}
+            style={getToolButtonStyle(selectedTool === 'pala')}
             onClick={() => setSelectedTool('pala')}
           >
             <span style={styles.toolIcon}>🪵</span>
@@ -145,15 +180,21 @@ export const GameUI: React.FC = () => {
           </button>
 
           <button
-            style={{
-              ...styles.toolButton,
-              ...(selectedTool === 'atizador' ? styles.toolButtonActive : {})
-            }}
+            style={getToolButtonStyle(selectedTool === 'atizador')}
             onClick={() => setSelectedTool('atizador')}
           >
             <span style={styles.toolIcon}>🦯</span>
             <div style={styles.toolLabel}>Atizador</div>
-            <div style={styles.toolSub}>Quebrar & Repartir</div>
+            <div style={styles.toolSub}>Esparcir Fuego</div>
+          </button>
+
+          <button
+            style={getToolButtonStyle(selectedTool === 'cepillo')}
+            onClick={() => setSelectedTool('cepillo')}
+          >
+            <span style={styles.toolIcon}>🧹</span>
+            <div style={styles.toolLabel}>Cepillo</div>
+            <div style={styles.toolSub}>Desoxidar Fierros</div>
           </button>
         </div>
       </div>
@@ -161,7 +202,24 @@ export const GameUI: React.FC = () => {
   );
 };
 
-// Estilos modernos y criollos
+// Función auxiliar para botones de herramientas con propiedades separadas de bordes
+const getToolButtonStyle = (isActive: boolean): React.CSSProperties => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  backgroundColor: isActive ? '#873600' : 'transparent',
+  borderStyle: 'solid',
+  borderWidth: '2px',
+  borderColor: isActive ? '#e67e22' : 'transparent',
+  borderRadius: '12px',
+  padding: '10px 18px',
+  cursor: 'pointer',
+  color: isActive ? '#ffffff' : '#c2b3a3',
+  boxShadow: isActive ? '0 0 16px rgba(230, 126, 34, 0.4)' : 'none',
+  transition: 'all 0.15s ease'
+});
+
+// Estilos criollos con propiedades separadas de borde para evitar advertencias de React
 const styles: { [key: string]: React.CSSProperties } = {
   menuOverlay: {
     position: 'absolute',
@@ -181,7 +239,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   menuCard: {
     backgroundColor: '#1f1612',
-    border: '2px solid #8c4c23',
+    borderStyle: 'solid',
+    borderWidth: '2px',
+    borderColor: '#8c4c23',
     borderRadius: '16px',
     padding: '40px 48px',
     maxWidth: '560px',
@@ -201,7 +261,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '4px 12px',
     borderRadius: '20px',
     marginBottom: '14px',
-    border: '1px solid rgba(243, 156, 18, 0.3)'
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: 'rgba(243, 156, 18, 0.3)'
   },
   menuTitle: {
     fontSize: '44px',
@@ -236,7 +298,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: 'center',
     textAlign: 'left',
     backgroundColor: 'rgba(40, 25, 18, 0.8)',
-    borderLeft: '4px solid #f39c12',
+    borderLeftStyle: 'solid',
+    borderLeftWidth: '4px',
+    borderLeftColor: '#f39c12',
     padding: '12px 16px',
     borderRadius: '8px',
     marginBottom: '28px',
@@ -257,7 +321,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: '700',
     color: '#ffffff',
     background: 'linear-gradient(135deg, #d35400 0%, #b83b00 100%)',
-    border: 'none',
+    borderStyle: 'none',
+    borderWidth: '0px',
+    borderColor: 'transparent',
     borderRadius: '10px',
     cursor: 'pointer',
     boxShadow: '0 6px 20px rgba(211, 84, 0, 0.45)',
@@ -283,6 +349,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
+    flexWrap: 'wrap',
     pointerEvents: 'auto'
   },
   logoBadge: {
@@ -290,7 +357,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: 'center',
     gap: '8px',
     backgroundColor: 'rgba(25, 18, 14, 0.85)',
-    border: '1px solid #7a3e1b',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: '#7a3e1b',
     padding: '8px 16px',
     borderRadius: '24px',
     backdropFilter: 'blur(4px)'
@@ -302,17 +371,59 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   infoBadge: {
     backgroundColor: 'rgba(25, 18, 14, 0.85)',
-    border: '1px solid #5a331a',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: '#5a331a',
     padding: '8px 16px',
     borderRadius: '24px',
     color: '#e2d3c5',
     fontSize: '13px',
     backdropFilter: 'blur(4px)'
   },
+  fogonBadge: {
+    backgroundColor: 'rgba(28, 16, 10, 0.9)',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: '#b84411',
+    padding: '6px 14px',
+    borderRadius: '24px',
+    color: '#ffd8be',
+    fontSize: '13px',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  actionPill: {
+    backgroundColor: '#3b2216',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: '#a35020',
+    color: '#ffddbb',
+    padding: '4px 10px',
+    borderRadius: '14px',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  actionPillHot: {
+    backgroundColor: '#b83b00',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: '#ff6600',
+    color: '#ffffff',
+    padding: '4px 10px',
+    borderRadius: '14px',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    boxShadow: '0 0 10px rgba(255, 102, 0, 0.5)'
+  },
   secondaryButton: {
     backgroundColor: '#9c4217',
     color: '#ffffff',
-    border: 'none',
+    borderStyle: 'none',
+    borderWidth: '0px',
+    borderColor: 'transparent',
     padding: '8px 16px',
     borderRadius: '24px',
     fontSize: '13px',
@@ -323,7 +434,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   menuSmallButton: {
     backgroundColor: 'rgba(40, 30, 24, 0.8)',
     color: '#c2b3a3',
-    border: '1px solid #553e30',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: '#553e30',
     padding: '8px 16px',
     borderRadius: '24px',
     fontSize: '13px',
@@ -332,7 +445,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   tipBox: {
     alignSelf: 'center',
     backgroundColor: 'rgba(15, 10, 8, 0.85)',
-    border: '1px solid rgba(243, 156, 18, 0.4)',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: 'rgba(243, 156, 18, 0.4)',
     color: '#ffeacc',
     padding: '10px 20px',
     borderRadius: '20px',
@@ -350,29 +465,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     gap: '12px',
     backgroundColor: 'rgba(22, 15, 11, 0.9)',
-    border: '2px solid #6b3717',
+    borderStyle: 'solid',
+    borderWidth: '2px',
+    borderColor: '#6b3717',
     padding: '10px 14px',
     borderRadius: '16px',
     backdropFilter: 'blur(6px)',
     boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)'
-  },
-  toolButton: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    border: '1px solid transparent',
-    borderRadius: '12px',
-    padding: '10px 18px',
-    cursor: 'pointer',
-    color: '#c2b3a3',
-    transition: 'all 0.15s ease'
-  },
-  toolButtonActive: {
-    backgroundColor: '#873600',
-    borderColor: '#e67e22',
-    color: '#ffffff',
-    boxShadow: '0 0 16px rgba(230, 126, 34, 0.4)'
   },
   toolIcon: {
     fontSize: '22px',

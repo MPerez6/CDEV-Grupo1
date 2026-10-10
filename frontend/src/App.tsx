@@ -5,22 +5,23 @@ import { Physics } from '@react-three/rapier';
 import { Grill } from './components/Environment/Grill';
 import { PampaEnvironment } from './components/Environment/PampaEnvironment';
 import { Embers } from './components/FireSystem/Embers';
+import { Fogon } from './components/FireSystem/Fogon';
 import { MeatItemComponent } from './components/MeatItem/MeatItemComponent';
 import { PlayerTools } from './components/Player/PlayerTools';
 import { GameUI } from './components/UI/GameUI';
-import { useAsadoStore, generateUniqueMeatId } from './store/useAsadoStore';
+import { useAsadoStore } from './store/useAsadoStore';
 
 const App: React.FC = () => {
-  const addMeat = useAsadoStore((state) => state.addMeat);
   const meats = useAsadoStore((state) => state.meats);
+  const addMeat = useAsadoStore((state) => state.addMeat);
 
   useEffect(() => {
-    // Si la parrilla está vacía, añade un corte con ID estrictamente único
+    // Si la parrilla está vacía, aseguramos el corte inicial único
     if (meats.length === 0) {
       addMeat({
-        id: generateUniqueMeatId('vacio-pampeano'),
-        cut: 'Vacío Pampeano',
-        position: [0, 0.65, 0]
+        id: 'corte-tira-base',
+        cut: 'Tira de Asado Criolla',
+        position: [0, 0.45, 0]
       });
     }
   }, [addMeat, meats.length]);
@@ -31,7 +32,7 @@ const App: React.FC = () => {
       <GameUI />
 
       <Suspense fallback={null}>
-        {/* Cámara POV parrillera: posicionada de pie frente al fuego y la carne */}
+        {/* Cámara POV parrillera: apuntando directamente a la parrilla */}
         <Canvas
           shadows
           camera={{ position: [0, 1.8, 2.8], fov: 50 }}
@@ -41,6 +42,7 @@ const App: React.FC = () => {
             <Physics gravity={[0, -9.81, 0]}>
               <PampaEnvironment />
               <Grill />
+              <Fogon />
               <Embers />
 
               {meats.map((meat) => (
@@ -56,11 +58,11 @@ const App: React.FC = () => {
           <OrbitControls
             makeDefault
             target={[0, 0.45, 0]}
-            minAzimuthAngle={-Math.PI / 4}
-            maxAzimuthAngle={Math.PI / 4}
+            minAzimuthAngle={-Math.PI / 3}
+            maxAzimuthAngle={Math.PI / 3}
             minPolarAngle={Math.PI / 6}
             maxPolarAngle={Math.PI / 2.15}
-            minDistance={1.4}
+            minDistance={1.2}
             maxDistance={4.2}
             enablePan={false}
           />
