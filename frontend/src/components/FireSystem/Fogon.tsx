@@ -1,6 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, Vector3, Color, InstancedMesh, Object3D } from 'three';
+import { Text } from '@react-three/drei';
 import { useAsadoStore } from '../../store/useAsadoStore';
 
 // Partículas de llamas y chispas procedimentales para el fuego del fogonero
@@ -73,13 +74,16 @@ export const Fogon: React.FC = () => {
   const fogonGroupRef = useRef<Group>(null);
   const fogonStage = useAsadoStore((state) => state.fogonStage);
   const fogonProgress = useAsadoStore((state) => state.fogonProgress);
+  const fogonEmbersCount = useAsadoStore((state) => state.fogonEmbersCount);
+  const carriedEmbersCount = useAsadoStore((state) => state.carriedEmbersCount);
   const selectedTool = useAsadoStore((state) => state.selectedTool);
+  const setSelectedTool = useAsadoStore((state) => state.setSelectedTool);
   const colocarPapelYFosforo = useAsadoStore((state) => state.colocarPapelYFosforo);
   const encenderFogon = useAsadoStore((state) => state.encenderFogon);
   const avanzarFogon = useAsadoStore((state) => state.avanzarFogon);
   const tomarBrasasDelFogon = useAsadoStore((state) => state.tomarBrasasDelFogon);
 
-  // Progresión y temporizador de combustión
+  // Progresión y combustión de los leños en tiempo real
   useFrame((_, delta) => {
     if (fogonStage === 'encendido') {
       avanzarFogon(delta);
@@ -101,22 +105,24 @@ export const Fogon: React.FC = () => {
       return;
     }
 
-    // 3. Si las brasas están listas y tenemos pala o atizador, tomamos brasas
+    // 3. Si las brasas están listas, cargar en la pala/atizador
     if (fogonStage === 'brasas_listas') {
-      if (selectedTool === 'pala' || selectedTool === 'atizador') {
-        tomarBrasasDelFogon(8);
+      if (selectedTool !== 'pala' && selectedTool !== 'atizador') {
+        setSelectedTool('pala');
       }
+      tomarBrasasDelFogon(8);
     }
   };
 
-  // Simulación del colapso de los leños: a medida que avanza la combustión se achican y ennegrecen
+  // Simulación del colapso de los leños: se achican y ennegrecen con la combustión
   const woodScale = 1.0 - fogonProgress * 0.45;
   const woodY = 0.25 - fogonProgress * 0.12;
-  const woodColor = fogonStage === 'sin_fuego' || fogonStage === 'con_papel'
-    ? '#4a2e18'
-    : fogonStage === 'encendido'
-    ? '#22150d'
-    : '#120d0b';
+  const woodColor =
+    fogonStage === 'sin_fuego' || fogonStage === 'con_papel'
+      ? '#4a2e18'
+      : fogonStage === 'encendido'
+      ? '#22150d'
+      : '#120d0b';
 
   return (
     <group
@@ -143,7 +149,7 @@ export const Fogon: React.FC = () => {
           <torusGeometry args={[0.34, 0.015, 8, 24]} />
           <meshStandardMaterial color="#1a1a1a" roughness={0.7} metalness={0.8} />
         </mesh>
-        {/* Varillas verticales de contención de quebracho */}
+        {/* Varillas verticales de contención */}
         {Array.from({ length: 12 }).map((_, i) => {
           const angle = (i / 12) * Math.PI * 2;
           const r = 0.32;
@@ -158,33 +164,30 @@ export const Fogon: React.FC = () => {
             </mesh>
           );
         })}
-        {/* Piso de barro/chapa bajo el brasero */}
+        {/* Piso de ladrillo/chapa bajo el brasero */}
         <mesh position={[0, -0.22, 0]} receiveShadow>
           <cylinderGeometry args={[0.38, 0.42, 0.04, 24]} />
           <meshStandardMaterial color="#2d221c" roughness={0.9} metalness={0.1} />
         </mesh>
       </group>
 
-      {/* 2. Leños de leña de quebracho cruzados (con colapso progresivo) */}
+      {/* 2. Leños de quebracho colorado cruzados */}
       <group position={[0, woodY, 0]} scale={[woodScale, woodScale, woodScale]}>
-        {/* Leño principal 1 */}
         <mesh position={[-0.05, 0, 0]} rotation={[0.4, 0.3, 0.8]} castShadow>
           <cylinderGeometry args={[0.04, 0.045, 0.44, 8]} />
           <meshStandardMaterial color={woodColor} roughness={0.9} />
         </mesh>
-        {/* Leño principal 2 */}
         <mesh position={[0.05, 0.02, 0]} rotation={[-0.5, 0.7, -0.6]} castShadow>
           <cylinderGeometry args={[0.038, 0.042, 0.42, 8]} />
           <meshStandardMaterial color={woodColor} roughness={0.9} />
         </mesh>
-        {/* Leño cruzado 3 */}
         <mesh position={[0, 0.06, 0.03]} rotation={[0.8, -0.4, 0.2]} castShadow>
           <cylinderGeometry args={[0.035, 0.038, 0.4, 8]} />
           <meshStandardMaterial color={woodColor} roughness={0.9} />
         </mesh>
       </group>
 
-      {/* 3. Papel de diario y fósforos (visible cuando se coloca el papel o fósforo) */}
+      {/* 3. Papel de diario y fósforos iniciales */}
       {(fogonStage === 'con_papel' || (fogonStage === 'encendido' && fogonProgress < 0.3)) && (
         <group position={[0, 0.12, 0]}>
           <mesh rotation={[0.2, 0.5, 0.1]} castShadow>
@@ -195,7 +198,6 @@ export const Fogon: React.FC = () => {
               wireframe={false}
             />
           </mesh>
-          {/* Fósforo encendido / llama inicial */}
           <mesh position={[0.08, 0.08, 0.05]} rotation={[0, 0, 0.6]}>
             <cylinderGeometry args={[0.005, 0.005, 0.09]} />
             <meshStandardMaterial color="#c29b68" roughness={0.8} />
@@ -203,24 +205,23 @@ export const Fogon: React.FC = () => {
         </group>
       )}
 
-      {/* 4. Llamas tempranas y fuego activo */}
+      {/* 4. Llamas y resplandor de fuego activo */}
       {fogonStage === 'encendido' && (
         <>
           <FireFlamesParticles progress={fogonProgress} />
           <pointLight
             position={[0, 0.3, 0]}
             color="#ff5500"
-            intensity={2.5 * Math.min(1.0, 0.3 + fogonProgress)}
+            intensity={2.8 * Math.min(1.0, 0.3 + fogonProgress)}
             distance={4.0}
             decay={2}
           />
         </>
       )}
 
-      {/* 5. Colchón de brasas vivas colapsadas en la base del fogonero */}
+      {/* 5. Colchón de brasas vivas en el fogonero */}
       {(fogonStage === 'brasas_listas' || fogonProgress > 0.6) && (
         <group position={[0, 0.05, 0]}>
-          {/* Luz cálida de las brasas vivas acumuladas */}
           <pointLight
             position={[0, 0.15, 0]}
             color="#ff4400"
@@ -228,22 +229,56 @@ export const Fogon: React.FC = () => {
             distance={2.5}
             decay={2}
           />
-          {/* Montículo de brasas rojas procedimentales en la base del canasto */}
           <mesh position={[0, 0.02, 0]}>
             <cylinderGeometry args={[0.24, 0.28, 0.09, 12]} />
             <meshStandardMaterial
               color="#ff3300"
               emissive="#ff2200"
-              emissiveIntensity={0.8}
+              emissiveIntensity={0.85}
               roughness={0.8}
             />
           </mesh>
         </group>
       )}
 
-      {/* Cartel flotante / indicador 3D sutil para guiar al asador */}
-      <group position={[0, 0.6, 0]}>
-        {/* Luz tenue focal */}
+      {/* Cartel 3D de guía flotante sobre el fogonero */}
+      <group position={[0, 0.65, 0]}>
+        {fogonStage === 'sin_fuego' && (
+          <Text
+            fontSize={0.065}
+            color="#f39c12"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.005}
+            outlineColor="#000000"
+          >
+            [ Iniciar Fuego ]
+          </Text>
+        )}
+        {fogonStage === 'con_papel' && (
+          <Text
+            fontSize={0.065}
+            color="#e67e22"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.005}
+            outlineColor="#000000"
+          >
+            🔥 Clic para Encender
+          </Text>
+        )}
+        {fogonStage === 'brasas_listas' && fogonEmbersCount > 0 && (
+          <Text
+            fontSize={0.06}
+            color="#ffddaa"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.005}
+            outlineColor="#000000"
+          >
+            {carriedEmbersCount > 0 ? '✓ Brasas en Pala' : '🪵 Clic para Cargar Brasas'}
+          </Text>
+        )}
       </group>
     </group>
   );

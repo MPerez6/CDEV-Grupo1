@@ -14,6 +14,7 @@ import { useAsadoStore } from './store/useAsadoStore';
 const App: React.FC = () => {
   const meats = useAsadoStore((state) => state.meats);
   const addMeat = useAsadoStore((state) => state.addMeat);
+  const placingMeatId = useAsadoStore((state) => state.placingMeatId);
 
   useEffect(() => {
     // Si la parrilla está vacía, aseguramos el corte inicial único
@@ -21,7 +22,7 @@ const App: React.FC = () => {
       addMeat({
         id: 'corte-tira-base',
         cut: 'Tira de Asado Criolla',
-        position: [0, 0.45, 0]
+        position: [0, 0.42, 0]
       });
     }
   }, [addMeat, meats.length]);
@@ -54,10 +55,11 @@ const App: React.FC = () => {
             <PlayerTools />
           </Suspense>
 
-          {/* POV Parrillera: límites angulares y polares para que el jugador esté frente a la parrilla */}
+          {/* POV Parrillera: al acomodar cortes se deshabilita para evitar rotación involuntaria */}
           <OrbitControls
             makeDefault
-            target={[0, 0.45, 0]}
+            enabled={!placingMeatId}
+            target={[0, 0.42, 0]}
             minAzimuthAngle={-Math.PI / 3}
             maxAzimuthAngle={Math.PI / 3}
             minPolarAngle={Math.PI / 6}

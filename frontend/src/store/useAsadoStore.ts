@@ -43,6 +43,13 @@ export interface AsadoStore {
   addMeat: (meat: AddMeatInput) => void;
   updateCookLevel: (id: string, levelDelta: number) => void;
   flipMeat: (id: string) => void;
+  setMeatPosition: (id: string, pos: [number, number, number]) => void;
+
+  // Sistema de colocación y acomodo de cortes en la parrilla
+  placingMeatId: string | null;
+  startPlacingMeat: (id: string) => void;
+  finishPlacingMeat: (id: string, pos?: [number, number, number]) => void;
+  cancelPlacingMeat: () => void;
 
   // Sistema de brasas y calor
   embers: EmberData[];
@@ -58,7 +65,7 @@ export interface AsadoStore {
     optZ?: number
   ) => number;
 
-  // Hito 1.1 y 1.2: Fogón criollo y acarreo de brasas
+  // Fogón criollo y acarreo de brasas
   fogonStage: FogonStage;
   fogonProgress: number; // 0 a 1 colapso de leña
   fogonEmbersCount: number; // Brasas producidas en el fogón
@@ -69,7 +76,7 @@ export interface AsadoStore {
   tomarBrasasDelFogon: (amount?: number) => void;
   distribuirBrasasEnParrilla: (pos: [number, number, number]) => void;
 
-  // Hito 1.3: Limpieza y curado de la parrilla
+  // Limpieza y curado de la parrilla
   rustLevel: number; // 1.0 (oxidada/sucia) a 0.0 (curada y limpia)
   isClean: boolean;
   cleanGrill: (amount?: number) => void;
@@ -83,27 +90,7 @@ export const generateUniqueMeatId = (prefix = 'corte'): string => {
   return `${prefix}-${Date.now()}-${meatCounter}-${randomSuffix}`;
 };
 
-// Brasas iniciales bajo el emparrillado
-export const createInitialEmbers = (count = 60): EmberData[] => {
-  const initial: EmberData[] = [];
-  for (let i = 0; i < count; i++) {
-    initial.push({
-      id: `ember-init-${i}`,
-      position: [
-        (Math.random() - 0.5) * 1.6,
-        0.02,
-        (Math.random() - 0.5) * 1.6
-      ],
-      temperature: 0.8 + Math.random() * 0.2,
-      decayRate: 0.002 + Math.random() * 0.001
-    });
-  }
-  return initial;
-};
-
-const defaultEmbers = createInitialEmbers(60);
-
-// Inicializa la grilla térmica 2D con ceros
+// Inicializa la grilla térmica 2D con ceros absolutos
 const createEmptyThermalGrid = (): number[] => new Array(GRID_RES * GRID_RES).fill(0);
 
 export const useAsadoStore = create<AsadoStore>((set, get) => ({
@@ -113,22 +100,45 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   setStage: (stage) => set({ stage }),
   setSelectedTool: (selectedTool) => set({ selectedTool }),
 
-  // Corte de prueba visible por defecto asegurado en position={[0, 0.45, 0]}
+  // Corte inicial asegurado sobre la parrilla
   meats: [
     {
       id: 'corte-tira-base',
       cut: 'Tira de Asado Criolla',
-      position: [0, 0.45, 0],
+      position: [0, 0.42, 0],
       cookLevel: 0,
       flipped: false
     }
   ],
 
-  embers: defaultEmbers,
-  embersPos: defaultEmbers.map((e) => e.position),
+  // Hito 3: Las brasas bajo la parrilla DEBEN comenzar VACÍAS ([])
+  // y la grilla térmica en 0 calor al inicio.
+  embers: [],
+  embersPos: [],
   thermalGrid: createEmptyThermalGrid(),
 
-  // Fogón y fuego
+  // Estado de colocación y acomodo de carne
+  placingMeatId: null,
+  startPlacingMeat: (id: string) => set({ placingMeatId: id }),
+  finishPlacingMeat: (id: string, pos?: [number, number, number]) => {
+    set((state) => ({
+      placingMeatId: null,
+      meats: state.meats.map((m) =>
+        m.id === id
+          ? { ...m, position: pos ?? m.position }
+          : m
+      )
+    }));
+  },
+  cancelPlacingMeat: () => set({ placingMeatId: null }),
+
+  setMeatPosition: (id: string, pos: [number, number, number]) => {
+    set((state) => ({
+      meats: state.meats.map((m) => (m.id === id ? { ...m, position: pos } : m))
+    }));
+  },
+
+  // Fogón y fuego inicial
   fogonStage: 'sin_fuego',
   fogonProgress: 0,
   fogonEmbersCount: 0,
@@ -160,7 +170,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   updateCookLevel: (id, levelDelta) => set((state) => ({
     meats: state.meats.map((meat) =>
       meat.id === id
-        ? { ...meat, cookLevel: Math.min(Math.max(meat.cookLevel + levelDelta, 0), 2) }
+        ? { ...meat, cookLevel: Math.min(Math.max(meat.cookLevel + levelDelta, 0), 2.0) }
         : meat
     )
   })),
@@ -200,13 +210,13 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
       const newEmbers: EmberData[] = [];
       const timestamp = Date.now();
       for (let i = 0; i < count; i++) {
-        const jitterX = (Math.random() - 0.5) * 0.28;
-        const jitterZ = (Math.random() - 0.5) * 0.28;
+        const jitterX = (Math.random() - 0.5) * 0.32;
+        const jitterZ = (Math.random() - 0.5) * 0.32;
         newEmbers.push({
           id: `ember-added-${timestamp}-${i}-${Math.random()}`,
           position: [pos[0] + jitterX, 0.02, pos[2] + jitterZ],
           temperature: 0.9 + Math.random() * 0.1, // Al rojo vivo
-          decayRate: 0.002 + Math.random() * 0.001
+          decayRate: 0.0018 + Math.random() * 0.001
         });
       }
       const combined = [...state.embers, ...newEmbers];
@@ -217,7 +227,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     });
   },
 
-  // Fogón: interacción y progresión
+  // Fogón: interacción y progresión criolla
   colocarPapelYFosforo: () => {
     set((state) => {
       if (state.fogonStage === 'sin_fuego') {
@@ -240,14 +250,14 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     set((state) => {
       if (state.fogonStage !== 'encendido') return state;
 
-      // Progresión paulatina de la combustión de la leña (aprox. 10-12 segundos a fuego vivo)
-      const nextProgress = Math.min(1.0, state.fogonProgress + delta * 0.08);
+      // Combustión de los leños de quebracho (~10-12s hasta quebrar en brasas)
+      const nextProgress = Math.min(1.0, state.fogonProgress + delta * 0.09);
 
       if (nextProgress >= 1.0) {
         return {
           fogonStage: 'brasas_listas',
           fogonProgress: 1.0,
-          fogonEmbersCount: Math.max(state.fogonEmbersCount, 35)
+          fogonEmbersCount: Math.max(state.fogonEmbersCount, 40)
         };
       }
 
@@ -276,7 +286,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
       set({ carriedEmbersCount: carriedEmbersCount - toDistribute });
     } else {
       // Si el jugador no cargó previamente pero tiene pala/atizador y brasas en el fogón,
-      // toma automáticamente del fogón y distribuye
+      // toma automáticamente del fogón y distribuye bajo la parrilla
       const { fogonStage, fogonEmbersCount } = get();
       if (fogonStage === 'brasas_listas' && fogonEmbersCount > 0) {
         const toTake = Math.min(6, fogonEmbersCount);
@@ -300,6 +310,16 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   // Simulación térmica 2D y decaimiento térmico paulatino
   decayThermalSystem: (delta = 0.016) => {
     set((state) => {
+      if (state.embers.length === 0) {
+        // Si no hay brasas, el calor se disipa hasta cero absoluto
+        const hasHeat = state.thermalGrid.some((h) => h > 0.001);
+        if (!hasHeat) return state;
+
+        return {
+          thermalGrid: state.thermalGrid.map((h) => Math.max(0, h * (1 - 0.08 * delta)))
+        };
+      }
+
       // 1. Decaimiento de temperatura en las brasas individuales
       let embersChanged = false;
       const updatedEmbers = state.embers.map((ember) => {
@@ -322,7 +342,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
         nextGrid[i] = Math.max(0, nextGrid[i] * (1 - 0.02 * delta));
       }
 
-      // Inyección de calor según posición y densidad de brasas vivas
+      // Inyección de calor según posición y temperatura de brasas vivas
       for (const ember of updatedEmbers) {
         if (ember.temperature <= 0.01) continue;
 
@@ -349,8 +369,14 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     optZ?: number
   ): number => {
     const { embers, thermalGrid } = get();
+
+    // Si no hay brasas en la escena, calor es 0 garantizado
+    if (embers.length === 0) {
+      return 0;
+    }
+
     let targetX = 0;
-    let targetY = 0.3; // Altura de los hierros
+    let targetY = 0.35; // Altura de los hierros
     let targetZ = 0;
 
     if (typeof xOrPos === 'number') {
@@ -364,14 +390,14 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     } else if (Array.isArray(xOrPos)) {
       targetX = xOrPos[0] ?? 0;
       if (xOrPos.length >= 3) {
-        targetY = xOrPos[1] ?? 0.3;
+        targetY = xOrPos[1] ?? 0.35;
         targetZ = xOrPos[2] ?? 0;
       } else {
         targetZ = xOrPos[1] ?? 0;
       }
     } else if (typeof xOrPos === 'object' && xOrPos !== null) {
       targetX = xOrPos.x ?? 0;
-      targetY = xOrPos.y !== undefined ? xOrPos.y : 0.3;
+      targetY = xOrPos.y !== undefined ? xOrPos.y : 0.35;
       targetZ = xOrPos.z ?? 0;
     }
 
@@ -383,23 +409,24 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
 
     let gridHeat = 0;
     if (cellX >= 0 && cellX < GRID_RES && cellZ >= 0 && cellZ < GRID_RES) {
-      gridHeat = thermalGrid[cellZ * GRID_RES + cellX] || 0;
+      gridHeat = thermalGrid[cellZ * GRID_RES + cellX];
     }
 
-    // Radiación directa inversa del cuadrado desde las brasas más cercanas
+    // Radiación directa inversa al cuadrado de las brasas vivas
     let directHeat = 0;
-    for (let i = 0; i < embers.length; i++) {
-      const ember = embers[i];
-      if (!ember || ember.temperature <= 0.001) continue;
-
+    for (const ember of embers) {
+      if (ember.temperature <= 0.01) continue;
       const dx = targetX - ember.position[0];
       const dy = targetY - ember.position[1];
       const dz = targetZ - ember.position[2];
-      const distanceSq = dx * dx + dy * dy + dz * dz;
+      const distSq = dx * dx + dy * dy + dz * dz;
 
-      directHeat += ember.temperature / (distanceSq + 0.12);
+      // Calor inversamente proporcional a la distancia al cuadrado
+      if (distSq < 1.0) {
+        directHeat += (ember.temperature * 0.9) / (distSq + 0.06);
+      }
     }
 
-    return directHeat * 0.7 + gridHeat * 0.3;
+    return gridHeat * 0.4 + directHeat * 0.6;
   }
 }));
