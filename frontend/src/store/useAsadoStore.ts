@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 
+export type AsadoTool = 'pala' | 'atizador' | 'tenedor';
+export type GameStage = 'menu' | 'playing' | 'served';
+
 export interface EmberData {
   id: string | number;
   position: [number, number, number];
@@ -19,12 +22,21 @@ export type AddMeatInput = Omit<MeatItem, 'cookLevel' | 'flipped'> &
   Partial<Pick<MeatItem, 'cookLevel' | 'flipped'>>;
 
 export interface AsadoStore {
+  // Narrativa y juego
+  stage: GameStage;
+  selectedTool: AsadoTool;
+  setStage: (stage: GameStage) => void;
+  setSelectedTool: (tool: AsadoTool) => void;
+
+  // Estado de los cortes
   meats: MeatItem[];
-  embers: EmberData[];
-  embersPos: [number, number, number][];
   addMeat: (meat: AddMeatInput) => void;
   updateCookLevel: (id: string, levelDelta: number) => void;
   flipMeat: (id: string) => void;
+
+  // Sistema de brasas y calor
+  embers: EmberData[];
+  embersPos: [number, number, number][];
   setEmbers: (embers: EmberData[]) => void;
   setEmbersPos: (positions: [number, number, number][]) => void;
   decayThermalSystem: (delta?: number) => void;
@@ -79,21 +91,44 @@ export const createInitialEmbers = (count = 120): EmberData[] => {
 
 const defaultEmbers = createInitialEmbers(120);
 
+// Generador de IDs únicos para evitar cualquier colisión de keys en React
+let meatCounter = 0;
+export const generateUniqueMeatId = (prefix = 'corte'): string => {
+  meatCounter += 1;
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  return `${prefix}-${Date.now()}-${meatCounter}-${randomSuffix}`;
+};
+
 export const useAsadoStore = create<AsadoStore>((set, get) => ({
+  stage: 'menu',
+  selectedTool: 'tenedor',
+
+  setStage: (stage) => set({ stage }),
+  setSelectedTool: (selectedTool) => set({ selectedTool }),
+
   meats: [],
   embers: defaultEmbers,
-  embersPos: defaultEmbers.map(e => e.position),
+  embersPos: defaultEmbers.map((e) => e.position),
 
-  addMeat: (meat) => set((state) => ({
-    meats: [
-      ...state.meats,
-      {
-        ...meat,
-        cookLevel: meat.cookLevel ?? 0,
-        flipped: meat.flipped ?? false
-      }
-    ]
-  })),
+  addMeat: (meat) => set((state) => {
+    // Garantiza que cada corte tenga un ID estrictamente único
+    let resolvedId = meat.id;
+    if (!resolvedId || state.meats.some((m) => m.id === resolvedId)) {
+      resolvedId = generateUniqueMeatId(resolvedId || 'meat');
+    }
+
+    return {
+      meats: [
+        ...state.meats,
+        {
+          ...meat,
+          id: resolvedId,
+          cookLevel: meat.cookLevel ?? 0,
+          flipped: meat.flipped ?? false
+        }
+      ]
+    };
+  }),
 
   updateCookLevel: (id, levelDelta) => set((state) => ({
     meats: state.meats.map((meat) =>
@@ -111,7 +146,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
 
   setEmbers: (embers) => set({
     embers,
-    embersPos: embers.map(e => e.position)
+    embersPos: embers.map((e) => e.position)
   }),
 
   setEmbersPos: (positions) => set((state) => {
@@ -157,7 +192,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     });
   },
 
-  // Consulta térmica flexible: soporta (x, z), (x, y, z), [x, y, z], [x, z], o { x, y, z }
+  // Consulta térmica flexible
   getHeatAtPosition: (
     xOrPos: number | [number, number, number] | [number, number] | { x: number; y?: number; z: number },
     yOrZ?: number,
@@ -165,17 +200,15 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   ): number => {
     const { embers } = get();
     let targetX = 0;
-    let targetY = 0.3; // Altura estándar del plano del emparrillado
+    let targetY = 0.3; // Altura del plano del emparrillado
     let targetZ = 0;
 
     if (typeof xOrPos === 'number') {
       targetX = xOrPos;
       if (typeof optZ === 'number' && typeof yOrZ === 'number') {
-        // (x, y, z)
         targetY = yOrZ;
         targetZ = optZ;
       } else {
-        // (x, z)
         targetZ = yOrZ !== undefined ? yOrZ : 0;
       }
     } else if (Array.isArray(xOrPos)) {
@@ -202,7 +235,6 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
       const dz = targetZ - ember.position[2];
       const distanceSq = dx * dx + dy * dy + dz * dz;
 
-      // Ley física del inverso del cuadrado con factor de atenuación epsilon = 0.1
       totalHeat += ember.temperature / (distanceSq + 0.1);
     }
 

@@ -1,19 +1,19 @@
 from asador_harness import execute_objective
 
-hito_2_glb = (
-    "Hito 2 - Integración de Modelos GLB en public/models y Físicas Rapier:\n"
-    "1. Inspecciona los modelos 3D disponibles en la carpeta public/models usando inspect_3d_models.\n"
-    "2. En App.tsx, envuelve la escena y el canvas dentro de <Suspense fallback={null}> y <Physics gravity={[0, -9.81, 0]}> de @react-three/rapier.\n"
-    "3. En src/components/Environment/Grill.tsx, reemplaza o complementa la parrilla procedimental cargando el modelo GLB correspondiente usando useGLTF('/models/...') o envuelve la parrilla existente con un <RigidBody type='fixed' colliders='trimesh'> para que sirva de superficie de apoyo estática.\n"
-    "4. En src/components/MeatItem/MeatItemComponent.tsx, carga el modelo 3D GLB del corte de carne usando useGLTF('/models/...'). Si el modelo tiene mallas, aplica el material o shader de Maillard. Envuelve el corte dentro de un <RigidBody type='dynamic' colliders='cuboid'> con fricción 0.8 y restitución 0.1 para que colisione y repose sobre la parrilla.\n"
-    "5. Aplica preload de los modelos cargados (ej. useGLTF.preload('/models/...')) para optimizar el rendimiento y evitar micro-stutters.\n"
-    "6. Resuelve cualquier error de tipado o posibles 'undefined' en TypeScript.\n"
-    "7. Ejecuta la verificación con run_tests. Una vez que pase sin errores y el objetivo esté completo, haz push al repositorio."
+hito_narrativo_y_herramientas = (
+    "Hito 2 (Extendido) - Narrativa, Utensilios y Ambientación Pampeana:\n"
+    "1. ERROR CRÍTICO DE KEYS: Revisa useAsadoStore.ts y App.tsx. Asegúrate de que no haya elementos en 'meats' con keys repetidas como 'test-meat-1'. Cada corte debe tener un id único.\n"
+    "2. NARRATIVA Y MENÚ: Crea src/components/UI/GameUI.tsx montado sobre el canvas con Html de drei o superpuesto en DOM. Si stage === 'menu', muestra la portada 'Asador.js: El Ritual de las Brasas' con un botón para empezar. Agrega selector de herramientas (Pala, Atizador, Tenedor).\n"
+    "3. CÁMARA POV PARRILLERA: En App.tsx, configura OrbitControls con límites angulares (minAzimuthAngle y maxAzimuthAngle) y límite polar para que el jugador esté frente a la parrilla como un asador real, sin rotar 360 grados al vacío.\n"
+    "4. AMBIENTACIÓN PAMPEANA: Crea src/components/Environment/PampaEnvironment.tsx. Elimina el fondo gris neutro. Agrega el componente Sky de @react-three/drei con luz dorada de atardecer, un plano de suelo amplio con color de pasto pampeano y sombras suaves, y una pared o alambrado rústico de fondo.\n"
+    "5. UTENSILIOS INTERACTIVOS: Crea src/components/Player/PlayerTools.tsx. Si existen en /models/ (revisa con inspect_3d_models), carga los modelos GLB de pala, atizador y tenedor; si no, modela primitivas rústicas metálicas con mango de madera. El tenedor debe permitir pinchar y voltear la carne (flipMeat) al hacer click sobre el corte.\n"
+    "6. FÍSICAS RAPIER: Mantén la integración de Physics de @react-three/rapier con la parrilla fija (fixed) y la carne dinámica (dynamic).\n"
+    "7. VERIFICACIÓN: Ejecuta run_tests (npm run build). Resuelve cualquier conflicto de tipos en TypeScript. Cuando compile sin errores, haz push al repositorio."
 )
 
 if __name__ == "__main__":
-    exito = execute_objective(objective=hito_2_glb, max_iterations=4)
+    exito = execute_objective(objective=hito_narrativo_y_herramientas, max_iterations=4)
     if exito:
-        print("\n[OK] ¡Hito 2 completado exitosamente con modelos GLB y físicas!")
+        print("\n[OK] ¡Hito 2 completado con narrativa, herramientas y ambientación pampeana!")
     else:
-        print("\n[REVISAR] El harness finalizó con bloqueos o iteraciones agotadas.")
+        print("\n[REVISAR] El harness finalizó con bloqueos o iteraciones pendientes.")

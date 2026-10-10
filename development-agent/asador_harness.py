@@ -8,6 +8,7 @@ from google.genai import types
 from tools.fs_tools import read_file, write_file, list_directory
 from tools.verification_tools import run_tests
 from tools.assets_tools import inspect_3d_models
+from tools.package_tools import inspect_dependencies
 from tools.git_tools import push_to_repository
 
 # Carga las variables definidas en el archivo .env en os.environ
@@ -20,6 +21,7 @@ ALL_TOOLS = [
     list_directory,
     run_tests,
     inspect_3d_models,
+    inspect_dependencies,
     push_to_repository
 ]
 

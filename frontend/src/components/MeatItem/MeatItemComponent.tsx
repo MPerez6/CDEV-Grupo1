@@ -20,7 +20,6 @@ const vertexShader = `
 `;
 
 // Fragment shader: simulación de la reacción de Maillard
-// Transiciona de carne cruda (rojo sangre) a cocido parrillero (dorado tostado) y a quemado (carbón)
 const fragmentShader = `
   uniform float uCookLevel;
   uniform vec3 uRawColor;
@@ -35,11 +34,10 @@ const fragmentShader = `
       // De crudo (0.0) a cocido a punto (1.0)
       baseColor = mix(uRawColor, uCookedColor, clamp(uCookLevel, 0.0, 1.0));
     } else {
-      // De cocido a punto (1.0) a arrebatado/quemado (2.0)
+      // De cocido a punto (1.0) a quemado (2.0)
       baseColor = mix(uCookedColor, uBurntColor, clamp(uCookLevel - 1.0, 0.0, 1.0));
     }
 
-    // Sombreado difuso para dar volumen realista al corte
     vec3 lightDir = normalize(vec3(1.0, 2.5, 1.0));
     float diff = max(dot(vNormal, lightDir), 0.35);
 
@@ -55,6 +53,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null);
   const prevFlippedRef = useRef<boolean>(meat.flipped);
 
+  const selectedTool = useAsadoStore((state) => state.selectedTool);
   const getHeatAtPosition = useAsadoStore((state) => state.getHeatAtPosition);
   const updateCookLevel = useAsadoStore((state) => state.updateCookLevel);
   const flipMeat = useAsadoStore((state) => state.flipMeat);
@@ -90,12 +89,12 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     return clone;
   }, [scene, maillardMaterial]);
 
-  // Si cambia el estado de volteo, aplicamos un impulso parrillero dinámico
+  // Si cambia el estado de volteo (por tenedor parrillero), aplicamos impulso físico
   useEffect(() => {
     if (prevFlippedRef.current !== meat.flipped && rigidBodyRef.current) {
       prevFlippedRef.current = meat.flipped;
-      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.2, z: 0 }, true);
-      rigidBodyRef.current.applyTorqueImpulse({ x: 0.08, y: 0, z: 0 }, true);
+      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.4, z: 0 }, true);
+      rigidBodyRef.current.applyTorqueImpulse({ x: 0.12, y: 0, z: 0 }, true);
     }
   }, [meat.flipped]);
 
@@ -115,7 +114,6 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     // Consulta el calor en la posición física actual sobre la parrilla
     const heat = getHeatAtPosition(currentX, currentY, currentZ);
 
-    // Multiplicador térmico para regular la cocción del asado
     const heatMultiplier = 0.005;
     const cookDelta = heat * heatMultiplier * delta;
 
@@ -123,11 +121,18 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       updateCookLevel(meat.id, cookDelta);
     }
 
-    // Actualiza el nivel térmico en el material de Maillard
     if (maillardMaterial.uniforms && maillardMaterial.uniforms.uCookLevel) {
       maillardMaterial.uniforms.uCookLevel.value = meat.cookLevel;
     }
   });
+
+  const handleMeatClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    // El tenedor permite pinchar y voltear la carne al hacer click sobre el corte
+    if (selectedTool === 'tenedor') {
+      flipMeat(meat.id);
+    }
+  };
 
   return (
     <RigidBody
@@ -140,13 +145,10 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     >
       <group
         scale={[0.018, 0.018, 0.018]}
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          e.stopPropagation();
-          flipMeat(meat.id);
-        }}
+        onClick={handleMeatClick}
         onPointerOver={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
-          document.body.style.cursor = 'pointer';
+          document.body.style.cursor = selectedTool === 'tenedor' ? 'grab' : 'pointer';
         }}
         onPointerOut={() => {
           document.body.style.cursor = 'auto';
@@ -158,5 +160,5 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   );
 };
 
-// Precarga del modelo 3D GLB para evitar stutters
+// Precarga del modelo 3D GLB
 useGLTF.preload(MEAT_MODEL_PATH);
