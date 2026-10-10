@@ -11,7 +11,7 @@ export const calculateHeatTransfer = (
   let totalHeat = 0;
   const targetX = targetPosition[0];
   const targetY = targetPosition.length >= 3 ? targetPosition[1] : 0.3;
-  const targetZ = targetPosition.length >= 3 ? targetPosition[2] : targetPosition[1];
+  const targetZ = (targetPosition.length >= 3 ? targetPosition[2] : targetPosition[1]) ?? 0;
 
   for (const ember of embers) {
     const pos = Array.isArray(ember) ? ember : ember.position;

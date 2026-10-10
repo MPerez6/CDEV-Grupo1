@@ -83,6 +83,7 @@ def execute_objective(objective: str, max_iterations: int = 5, model_id: str = "
             print("[HARNESS] ✓ Las verificaciones pasaron sin errores.")
             
             # Revisar el resultado y evaluar si el objetivo se cumplió[cite: 1]
+      # Revisar el resultado y evaluar si el objetivo se cumplió
             eval_prompt = (
                 "El build pasó con éxito. Revisa tus cambios.\n"
                 "¿Consideras que el objetivo propuesto está CUMPLIDO o requieres más cambios?\n"
@@ -90,14 +91,26 @@ def execute_objective(objective: str, max_iterations: int = 5, model_id: str = "
                 "- Si NO: indica 'OBJETIVO_INCOMPLETO' y continúa editando."
             )
             eval_res = chat.send_message(eval_prompt)
-            print(f"[EVALUACIÓN]: {eval_res.text}")
 
-            if "OBJETIVO_CUMPLIDO" in eval_res.text:
-                print(f"[HARNESS] Proceso finalizado. Cambios enviados al repositorio.[cite: 1]")
+            # 1. Extracción segura del texto y detección de tool calls
+            eval_text = eval_res.text or ""
+            called_tools = [fc.name for fc in eval_res.function_calls] if eval_res.function_calls else []
+
+            if eval_text:
+                print(f"[EVALUACIÓN]: {eval_text}")
+            elif called_tools:
+                print(f"[EVALUACIÓN]: El agente invocó herramientas: {', '.join(called_tools)}")
+            else:
+                print("[EVALUACIÓN]: Respuesta vacía sin llamadas.")
+
+            # 2. Verificación robusta: se considera cumplido si dice la palabra clave O si llamó a push_to_repository
+            cumplido = "OBJETIVO_CUMPLIDO" in eval_text or "push_to_repository" in called_tools
+
+            if cumplido:
+                print(f"[HARNESS] Proceso finalizado. Cambios enviados al repositorio.")
                 return True
             else:
-                prompt = "Continúa con la siguiente parte del objetivo y edita el código.[cite: 1]"
-        
+                prompt = "Continúa con la siguiente parte del objetivo y edita el código."
         else:
             # No pasa las verificaciones -> Analizar errores y logs[cite: 1]
             print("[HARNESS] ✗ Fallo en las verificaciones.")

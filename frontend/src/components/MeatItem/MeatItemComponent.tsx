@@ -1,7 +1,11 @@
-import React, { useRef, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Mesh, ShaderMaterial, Color, MathUtils } from 'three';
+import React, { useRef, useMemo, useEffect } from 'react';
+import { ThreeEvent, useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
+import { RigidBody, RapierRigidBody } from '@react-three/rapier';
+import { Mesh, ShaderMaterial, Color } from 'three';
 import { useAsadoStore, MeatItem } from '../../store/useAsadoStore';
+
+const MEAT_MODEL_PATH = '/models/meat_piece_raw.glb';
 
 // Vertex shader para el corte de carne sobre la parrilla
 const vertexShader = `
@@ -48,29 +52,70 @@ interface Props {
 }
 
 export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
-  const meshRef = useRef<Mesh>(null);
-  const materialRef = useRef<ShaderMaterial>(null);
+  const rigidBodyRef = useRef<RapierRigidBody>(null);
+  const prevFlippedRef = useRef<boolean>(meat.flipped);
 
-  const getHeatAtPosition = useAsadoStore(state => state.getHeatAtPosition);
-  const updateCookLevel = useAsadoStore(state => state.updateCookLevel);
-  const flipMeat = useAsadoStore(state => state.flipMeat);
+  const getHeatAtPosition = useAsadoStore((state) => state.getHeatAtPosition);
+  const updateCookLevel = useAsadoStore((state) => state.updateCookLevel);
+  const flipMeat = useAsadoStore((state) => state.flipMeat);
 
-  // Uniformes independientes por corte
-  const uniforms = useMemo(() => ({
-    uCookLevel: { value: meat.cookLevel },
-    uRawColor: { value: new Color('#9e2a2b') },
-    uCookedColor: { value: new Color('#52321c') },
-    uBurntColor: { value: new Color('#151110') },
-  }), []);
+  // Carga del modelo 3D GLB de corte de carne
+  const { scene } = useGLTF(MEAT_MODEL_PATH);
 
-  // Animación suave de giro y progreso térmico continuo
+  // Instancia independiente de ShaderMaterial con reacción de Maillard por corte
+  const maillardMaterial = useMemo(() => {
+    return new ShaderMaterial({
+      vertexShader,
+      fragmentShader,
+      uniforms: {
+        uCookLevel: { value: meat.cookLevel },
+        uRawColor: { value: new Color('#9e2a2b') },
+        uCookedColor: { value: new Color('#52321c') },
+        uBurntColor: { value: new Color('#151110') }
+      }
+    });
+  }, []);
+
+  // Clona la jerarquía del modelo GLB y asigna el shader de Maillard a todas sus mallas
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.traverse((child) => {
+      if ((child as Mesh).isMesh) {
+        const meshChild = child as Mesh;
+        meshChild.material = maillardMaterial;
+        meshChild.castShadow = true;
+        meshChild.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene, maillardMaterial]);
+
+  // Si cambia el estado de volteo, aplicamos un impulso parrillero dinámico
+  useEffect(() => {
+    if (prevFlippedRef.current !== meat.flipped && rigidBodyRef.current) {
+      prevFlippedRef.current = meat.flipped;
+      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.2, z: 0 }, true);
+      rigidBodyRef.current.applyTorqueImpulse({ x: 0.08, y: 0, z: 0 }, true);
+    }
+  }, [meat.flipped]);
+
+  // Actualización térmica y de shader en cada frame
   useFrame((_state, delta) => {
-    if (!meshRef.current) return;
+    let currentX = meat.position[0];
+    let currentY = meat.position[1];
+    let currentZ = meat.position[2];
 
-    // Consulta el calor térmico en su posición X/Z sobre la parrilla
-    const heat = getHeatAtPosition(meat.position[0], meat.position[2]);
+    if (rigidBodyRef.current) {
+      const translation = rigidBodyRef.current.translation();
+      currentX = translation.x;
+      currentY = translation.y;
+      currentZ = translation.z;
+    }
 
-    // Multiplicador térmico para regular la progresión de la cocción
+    // Consulta el calor en la posición física actual sobre la parrilla
+    const heat = getHeatAtPosition(currentX, currentY, currentZ);
+
+    // Multiplicador térmico para regular la cocción del asado
     const heatMultiplier = 0.005;
     const cookDelta = heat * heatMultiplier * delta;
 
@@ -78,46 +123,40 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       updateCookLevel(meat.id, cookDelta);
     }
 
-    // Actualiza el nivel térmico en el shader de Maillard
-    if (materialRef.current && materialRef.current.uniforms && materialRef.current.uniforms.uCookLevel) {
-      materialRef.current.uniforms.uCookLevel.value = meat.cookLevel;
+    // Actualiza el nivel térmico en el material de Maillard
+    if (maillardMaterial.uniforms && maillardMaterial.uniforms.uCookLevel) {
+      maillardMaterial.uniforms.uCookLevel.value = meat.cookLevel;
     }
-
-    // Transición suave de rotación al voltear el corte
-    const targetRotX = meat.flipped ? Math.PI : 0;
-    meshRef.current.rotation.x = MathUtils.lerp(
-      meshRef.current.rotation.x,
-      targetRotX,
-      Math.min(1, delta * 10)
-    );
   });
 
   return (
-    <mesh
-      ref={meshRef}
+    <RigidBody
+      ref={rigidBodyRef}
+      type="dynamic"
+      colliders="cuboid"
+      friction={0.8}
+      restitution={0.1}
       position={meat.position}
-      onClick={(e) => {
-        e.stopPropagation();
-        // Voltea el corte con clic parrillero
-        flipMeat(meat.id);
-      }}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        document.body.style.cursor = 'pointer';
-      }}
-      onPointerOut={() => {
-        document.body.style.cursor = 'auto';
-      }}
-      castShadow
-      receiveShadow
     >
-      <boxGeometry args={[0.9, 0.18, 0.55]} />
-      <shaderMaterial
-        ref={materialRef}
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        uniforms={uniforms}
-      />
-    </mesh>
+      <group
+        scale={[0.018, 0.018, 0.018]}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
+          flipMeat(meat.id);
+        }}
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = 'auto';
+        }}
+      >
+        <primitive object={clonedScene} />
+      </group>
+    </RigidBody>
   );
 };
+
+// Precarga del modelo 3D GLB para evitar stutters
+useGLTF.preload(MEAT_MODEL_PATH);
