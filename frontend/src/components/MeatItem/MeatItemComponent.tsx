@@ -2,13 +2,13 @@ import React, { useRef, useMemo, useEffect } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
 import { Center, useGLTF } from '@react-three/drei';
 import { RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier';
-import { Mesh, ShaderMaterial, Color, Vector3 } from 'three';
+import { Mesh, ShaderMaterial, Color, Vector3, Object3D } from 'three';
 import { useAsadoStore, MeatItem } from '../../store/useAsadoStore';
 import { SafeGLTF } from '../Common/SafeModelLoader';
 
 const MEAT_MODEL_PATH = '/models/meat_piece_raw.glb';
 
-// Vertex shader para el corte de carne
+// Vertex shader para el corte de carne vacuna criolla
 const vertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -23,8 +23,7 @@ const vertexShader = `
   }
 `;
 
-// Fragment shader: Reacción de Maillard paulatina y marcas de parrilla criolla
-// Transición: Rojo brillante -> Marrón dorado/costra -> Tostado a punto -> Carbón
+// Fragment shader: Reacción de Maillard paulatina y marcas de los hierros
 const fragmentShader = `
   uniform float uCookLevel;
   uniform vec3 uRawColor;
@@ -66,7 +65,7 @@ const fragmentShader = `
     vec3 sunLightDir = normalize(vec3(0.8, 2.2, 0.9));
     float diff = max(dot(vNormal, sunLightDir), 0.32);
 
-    // Resplandor cálido sutil si mira hacia abajo hacia las brasas
+    // Resplandor cálido si mira hacia abajo hacia las brasas
     float underBounce = max(-vNormal.y, 0.0) * 0.18;
     vec3 fireWarmth = vec3(0.25, 0.08, 0.01) * underBounce;
 
@@ -75,16 +74,46 @@ const fragmentShader = `
   }
 `;
 
-interface Props {
-  meat: MeatItem;
+// Subcomponente que clona la escena 3D y centra con escala normalizada
+interface MeatMeshProps {
+  scene: Object3D;
+  material: ShaderMaterial;
 }
+
+const MeatMesh: React.FC<MeatMeshProps> = ({ scene, material }) => {
+  // Clona la escena si se reutiliza el mismo modelo en múltiples cortes
+  const clone = useMemo(() => scene.clone(true), [scene]);
+
+  useEffect(() => {
+    clone.traverse((child) => {
+      if ((child as Mesh).isMesh) {
+        const meshChild = child as Mesh;
+        meshChild.material = material;
+        meshChild.castShadow = true;
+        meshChild.receiveShadow = true;
+      }
+    });
+  }, [clone, material]);
+
+  return (
+    <Center scale={0.3}>
+      <primitive object={clone} />
+    </Center>
+  );
+};
 
 // Fallback estilizado para el corte si el archivo .glb falla o no existe
 const MeatPieceFallback: React.FC<{ material: ShaderMaterial }> = ({ material }) => (
-  <mesh castShadow receiveShadow material={material}>
-    <boxGeometry args={[0.38, 0.05, 0.22]} />
-  </mesh>
+  <Center scale={0.3}>
+    <mesh castShadow receiveShadow material={material}>
+      <boxGeometry args={[0.72, 0.15, 0.48]} />
+    </mesh>
+  </Center>
 );
+
+interface Props {
+  meat: MeatItem;
+}
 
 export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null);
@@ -115,16 +144,16 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     });
   }, []);
 
-  // Si cambia el estado de volteo (por tenedor parrillero), aplicamos impulso físico
+  // Impulso físico de volteo si el estado flipped cambia
   useEffect(() => {
     if (prevFlippedRef.current !== meat.flipped && rigidBodyRef.current && !isBeingPlaced) {
       prevFlippedRef.current = meat.flipped;
-      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.45, z: 0 }, true);
-      rigidBodyRef.current.applyTorqueImpulse({ x: 0.16, y: 0, z: 0 }, true);
+      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.4, z: 0 }, true);
+      rigidBodyRef.current.applyTorqueImpulse({ x: 0.15, y: 0, z: 0 }, true);
     }
   }, [meat.flipped, isBeingPlaced]);
 
-  // Posicionamiento kinemático mientras se ubica con el puntero
+  // Posicionamiento kinemático mientras se ubica con el puntero y cocción lenta con inercia térmica
   useFrame((_state, delta) => {
     if (isBeingPlaced && rigidBodyRef.current) {
       rigidBodyRef.current.setNextKinematicTranslation(
@@ -147,11 +176,11 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     // Consulta de calor en la posición física sobre la parrilla
     const heat = getHeatAtPosition(currentX, currentY, currentZ);
 
-    // RECALIBRACIÓN TERMODINÁMICA CON INERCIA TÉRMICA:
+    // CALIBRACIÓN TÉRMICA REALISTA:
     // Si heat < 0.05 (sin brasas activas debajo), el corte NO se cocina.
-    // Ritmo pausado y realista: 0.00075 para cocción gradual y controlada.
+    // Ritmo pausado y gradual: 0.0006 para inercia térmica realista criolla
     if (heat >= 0.05 && meat.cookLevel < 2.0) {
-      const cookSpeed = 0.00075;
+      const cookSpeed = 0.0006;
       const cookDelta = heat * cookSpeed * delta;
       updateCookLevel(meat.id, cookDelta);
     }
@@ -168,7 +197,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
     triggerToolAction();
 
-    // Con click secundario (botón derecho) o si se usa tenedor con Shift, acomodar corte
+    // Click secundario o Shift+clic: activar modo de colocación / mover
     if (e.button === 2 || e.shiftKey) {
       startPlacingMeat(meat.id);
       return;
@@ -178,7 +207,6 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     if (selectedTool === 'tenedor') {
       flipMeat(meat.id);
     } else {
-      // Con cualquier otra herramienta o mano libre, activar acomodo
       startPlacingMeat(meat.id);
     }
   };
@@ -193,8 +221,8 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       position={meat.position}
       canSleep={false}
     >
-      {/* Colisionador cuboid ajustado que impide físicamente que el corte caiga entre los fierros */}
-      <CuboidCollider args={[0.22, 0.042, 0.16]} position={[0, 0, 0]} />
+      {/* Colisionador cuboid ajustado de dimensiones reales del corte que no cae entre hierros */}
+      <CuboidCollider args={[0.22, 0.045, 0.16]} position={[0, 0, 0]} />
 
       <group
         onPointerDown={handlePointerDown}
@@ -216,22 +244,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
           modelPath={MEAT_MODEL_PATH}
           fallback={<MeatPieceFallback material={maillardMaterial} />}
         >
-          {({ scene }) => {
-            const clone = scene.clone(true);
-            clone.traverse((child) => {
-              if ((child as Mesh).isMesh) {
-                const meshChild = child as Mesh;
-                meshChild.material = maillardMaterial;
-                meshChild.castShadow = true;
-                meshChild.receiveShadow = true;
-              }
-            });
-            return (
-              <Center scale={0.35}>
-                <primitive object={clone} />
-              </Center>
-            );
-          }}
+          {({ scene }) => <MeatMesh scene={scene} material={maillardMaterial} />}
         </SafeGLTF>
       </group>
     </RigidBody>
@@ -242,5 +255,5 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 try {
   useGLTF.preload(MEAT_MODEL_PATH);
 } catch (e) {
-  // Ignorar en SSR
+  // Ignorar en entorno SSR
 }

@@ -116,8 +116,8 @@ export const Grill: React.FC = () => {
 
   // Material de las barras de la parrilla que transiciona de oxidado a limpio/curado
   const barColor = useMemo(() => {
-    const rusty = new Color('#753f28');  // Color óxido ferroso
-    const clean = new Color('#2a2a2a');  // Hierro curado parrillero brillante
+    const rusty = new Color('#753f28');
+    const clean = new Color('#2a2a2a');
     return clean.clone().lerp(rusty, rustLevel);
   }, [rustLevel]);
 
@@ -145,7 +145,6 @@ export const Grill: React.FC = () => {
   const handlePlacingPointerMove = (e: ThreeEvent<PointerEvent>) => {
     if (placingMeatId) {
       e.stopPropagation();
-      // Mantiene el corte a la altura justa sobre los hierros
       setMeatPosition(placingMeatId, [e.point.x, 0.38, e.point.z]);
     }
   };
@@ -232,7 +231,6 @@ export const Grill: React.FC = () => {
         rotation={[-Math.PI / 2, 0, 0]}
         onPointerMove={handlePlacingPointerMove}
         onPointerDown={handlePlacingPointerDown}
-        visible={false}
       >
         <planeGeometry args={[width + 0.3, 4.1]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
@@ -254,7 +252,7 @@ export const Grill: React.FC = () => {
         }}
       >
         <planeGeometry args={[width + 0.5, 3.8]} />
-        <meshBasicMaterial visible={false} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
       {/* Partículas de desprendimiento de ceniza y óxido al limpiar */}

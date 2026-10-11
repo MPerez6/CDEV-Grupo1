@@ -35,8 +35,8 @@ const ashColor = new Color('#242120');   // Ceniza fría
 
 export const Embers: React.FC = () => {
   const meshRef = useRef<InstancedMesh>(null);
-  const embers = useAsadoStore(state => state.embers);
-  const decayThermalSystem = useAsadoStore(state => state.decayThermalSystem);
+  const embers = useAsadoStore((state) => state.embers);
+  const decayThermalSystem = useAsadoStore((state) => state.decayThermalSystem);
 
   const geometry = useMemo(() => new DodecahedronGeometry(1, 0), []);
   const material = useMemo(
@@ -65,18 +65,11 @@ export const Embers: React.FC = () => {
     return embers.map(() => Math.random() * Math.PI * 2);
   }, [embers.length]);
 
-  // Asegura la inicialización de count al montar o cambiar el tamaño de la lista
-  useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.count = embers.length;
-    }
-  }, [embers.length]);
-
   useFrame((state, delta) => {
-    if (!meshRef.current || embers.length === 0) return;
-
-    // Decaimiento natural del fuego con el transcurso de los segundos
+    // Decaimiento del calor general
     decayThermalSystem(delta);
+
+    if (!meshRef.current || embers.length === 0) return;
 
     const time = state.clock.elapsedTime;
     meshRef.current.count = embers.length;
@@ -104,15 +97,12 @@ export const Embers: React.FC = () => {
 
       // Color dinámico según la temperatura de la brasa viva
       if (t > 0.7) {
-        // Al rojo vivo incandescente (amarillento a naranja fuego)
         const factor = (t - 0.7) / 0.3;
         tempColor.copy(warmColor).lerp(hotColor, factor);
       } else if (t > 0.25) {
-        // Naranja vivo a rojo oscuro
         const factor = (t - 0.25) / 0.45;
         tempColor.copy(lowColor).lerp(warmColor, factor);
       } else {
-        // Rojo apagándose a ceniza gris
         const factor = t / 0.25;
         tempColor.copy(ashColor).lerp(lowColor, factor);
       }
@@ -125,6 +115,10 @@ export const Embers: React.FC = () => {
       meshRef.current.instanceColor.needsUpdate = true;
     }
   });
+
+  if (embers.length === 0) {
+    return null;
+  }
 
   return (
     <instancedMesh

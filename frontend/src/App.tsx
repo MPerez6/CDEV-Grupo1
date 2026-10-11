@@ -29,47 +29,45 @@ const App: React.FC = () => {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Interfaz de usuario (portada de menú + selector de utensilios HUD) */}
+      {/* Interfaz de usuario (selector de utensilios y guía superior despejada) */}
       <GameUI />
 
-      <Suspense fallback={null}>
-        {/* Cámara POV parrillera: apuntando directamente a la parrilla */}
-        <Canvas
-          shadows
-          camera={{ position: [0, 1.8, 2.8], fov: 50 }}
-        >
+      {/* Canvas 3D principal */}
+      <Canvas
+        shadows
+        camera={{ position: [0, 1.8, 2.8], fov: 50 }}
+      >
+        <Suspense fallback={null}>
           {/* Ambientación pampeana y físicas Rapier */}
-          <Suspense fallback={null}>
-            <Physics gravity={[0, -9.81, 0]}>
-              <PampaEnvironment />
-              <Grill />
-              <Fogon />
-              <Embers />
+          <Physics gravity={[0, -9.81, 0]}>
+            <PampaEnvironment />
+            <Grill />
+            <Fogon />
+            <Embers />
 
-              {meats.map((meat) => (
-                <MeatItemComponent key={meat.id} meat={meat} />
-              ))}
-            </Physics>
+            {meats.map((meat) => (
+              <MeatItemComponent key={meat.id} meat={meat} />
+            ))}
+          </Physics>
 
-            {/* Utensilios interactivos en mano del asador */}
-            <PlayerTools />
-          </Suspense>
+          {/* Utensilios interactivos en mano del asador */}
+          <PlayerTools />
+        </Suspense>
 
-          {/* POV Parrillera: al acomodar cortes se deshabilita para evitar rotación involuntaria */}
-          <OrbitControls
-            makeDefault
-            enabled={!placingMeatId}
-            target={[0, 0.42, 0]}
-            minAzimuthAngle={-Math.PI / 3}
-            maxAzimuthAngle={Math.PI / 3}
-            minPolarAngle={Math.PI / 6}
-            maxPolarAngle={Math.PI / 2.15}
-            minDistance={1.2}
-            maxDistance={4.2}
-            enablePan={false}
-          />
-        </Canvas>
-      </Suspense>
+        {/* POV Parrillera: al acomodar cortes se deshabilita para evitar rotación involuntaria */}
+        <OrbitControls
+          makeDefault
+          enabled={!placingMeatId}
+          target={[0, 0.42, 0]}
+          minAzimuthAngle={-Math.PI / 3}
+          maxAzimuthAngle={Math.PI / 3}
+          minPolarAngle={Math.PI / 6}
+          maxPolarAngle={Math.PI / 2.15}
+          minDistance={1.2}
+          maxDistance={4.2}
+          enablePan={false}
+        />
+      </Canvas>
     </div>
   );
 };
