@@ -35,8 +35,10 @@ export interface AsadoStore {
   // Narrativa y juego
   stage: GameStage;
   selectedTool: AsadoTool;
+  toolActionTrigger: number; // Disparador para animaciones de feedback de utensilios
   setStage: (stage: GameStage) => void;
   setSelectedTool: (tool: AsadoTool) => void;
+  triggerToolAction: () => void;
 
   // Estado de los cortes
   meats: MeatItem[];
@@ -94,11 +96,14 @@ export const generateUniqueMeatId = (prefix = 'corte'): string => {
 const createEmptyThermalGrid = (): number[] => new Array(GRID_RES * GRID_RES).fill(0);
 
 export const useAsadoStore = create<AsadoStore>((set, get) => ({
-  stage: 'menu',
+  // Inicia directamente en modo de juego para que el canvas y los modelos se aprecien en tiempo real
+  stage: 'playing',
   selectedTool: 'tenedor',
+  toolActionTrigger: 0,
 
   setStage: (stage) => set({ stage }),
   setSelectedTool: (selectedTool) => set({ selectedTool }),
+  triggerToolAction: () => set((state) => ({ toolActionTrigger: state.toolActionTrigger + 1 })),
 
   // Corte inicial asegurado sobre la parrilla
   meats: [
@@ -111,8 +116,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     }
   ],
 
-  // Hito 3: Las brasas bajo la parrilla DEBEN comenzar VACÍAS ([])
-  // y la grilla térmica en 0 calor al inicio.
+  // Hito 3: Las brasas bajo la parrilla inician vacías ([]) y grilla en 0 calor
   embers: [],
   embersPos: [],
   thermalGrid: createEmptyThermalGrid(),
@@ -145,13 +149,13 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   carriedEmbersCount: 0,
 
   // Limpieza de parrilla
-  rustLevel: 1.0,
+  rustLevel: 0.9,
   isClean: false,
 
   addMeat: (meat) => set((state) => {
     let resolvedId = meat.id;
     if (!resolvedId || state.meats.some((m) => m.id === resolvedId)) {
-      resolvedId = generateUniqueMeatId(resolvedId || 'meat');
+      resolvedId = generateUniqueMeatId(meat.cut ? meat.cut.toLowerCase().replace(/\s+/g, '-') : 'meat');
     }
 
     return {
@@ -175,11 +179,14 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     )
   })),
 
-  flipMeat: (id) => set((state) => ({
-    meats: state.meats.map((meat) =>
-      meat.id === id ? { ...meat, flipped: !meat.flipped } : meat
-    )
-  })),
+  flipMeat: (id) => {
+    get().triggerToolAction();
+    set((state) => ({
+      meats: state.meats.map((meat) =>
+        meat.id === id ? { ...meat, flipped: !meat.flipped } : meat
+      )
+    }));
+  },
 
   setEmbers: (embers) => set({
     embers,
@@ -213,7 +220,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
         const jitterX = (Math.random() - 0.5) * 0.32;
         const jitterZ = (Math.random() - 0.5) * 0.32;
         newEmbers.push({
-          id: `ember-added-${timestamp}-${i}-${Math.random()}`,
+          id: `ember-added-${timestamp}-${i}-${Math.random().toString(36).substring(2, 6)}`,
           position: [pos[0] + jitterX, 0.02, pos[2] + jitterZ],
           temperature: 0.9 + Math.random() * 0.1, // Al rojo vivo
           decayRate: 0.0018 + Math.random() * 0.001
@@ -266,27 +273,26 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   },
 
   tomarBrasasDelFogon: (amount = 8) => {
-    set((state) => {
-      if (state.fogonStage !== 'brasas_listas' || state.fogonEmbersCount <= 0) {
-        return state;
-      }
-      const toTake = Math.min(amount, state.fogonEmbersCount);
-      return {
-        fogonEmbersCount: state.fogonEmbersCount - toTake,
-        carriedEmbersCount: state.carriedEmbersCount + toTake
-      };
+    const state = get();
+    state.triggerToolAction();
+    if (state.fogonStage !== 'brasas_listas' || state.fogonEmbersCount <= 0) {
+      return;
+    }
+    const toTake = Math.min(amount, state.fogonEmbersCount);
+    set({
+      fogonEmbersCount: state.fogonEmbersCount - toTake,
+      carriedEmbersCount: state.carriedEmbersCount + toTake
     });
   },
 
   distribuirBrasasEnParrilla: (pos: [number, number, number]) => {
-    const { carriedEmbersCount, addEmbersAt } = get();
+    const { carriedEmbersCount, addEmbersAt, triggerToolAction } = get();
+    triggerToolAction();
     if (carriedEmbersCount > 0) {
       const toDistribute = Math.min(carriedEmbersCount, 6);
       addEmbersAt(pos, toDistribute);
       set({ carriedEmbersCount: carriedEmbersCount - toDistribute });
     } else {
-      // Si el jugador no cargó previamente pero tiene pala/atizador y brasas en el fogón,
-      // toma automáticamente del fogón y distribuye bajo la parrilla
       const { fogonStage, fogonEmbersCount } = get();
       if (fogonStage === 'brasas_listas' && fogonEmbersCount > 0) {
         const toTake = Math.min(6, fogonEmbersCount);
@@ -298,6 +304,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
 
   // Limpieza y desoxidado de la parrilla
   cleanGrill: (amount = 0.06) => {
+    get().triggerToolAction();
     set((state) => {
       const nextRust = Math.max(0, state.rustLevel - amount);
       return {
@@ -384,49 +391,46 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
       if (typeof optZ === 'number' && typeof yOrZ === 'number') {
         targetY = yOrZ;
         targetZ = optZ;
-      } else {
-        targetZ = yOrZ !== undefined ? yOrZ : 0;
+      } else if (typeof yOrZ === 'number') {
+        targetZ = yOrZ;
       }
     } else if (Array.isArray(xOrPos)) {
       targetX = xOrPos[0] ?? 0;
       if (xOrPos.length >= 3) {
         targetY = xOrPos[1] ?? 0.35;
-        targetZ = xOrPos[2] ?? 0;
-      } else {
+        targetZ = (xOrPos as [number, number, number])[2] ?? 0;
+      } else if (xOrPos.length === 2) {
         targetZ = xOrPos[1] ?? 0;
       }
-    } else if (typeof xOrPos === 'object' && xOrPos !== null) {
-      targetX = xOrPos.x ?? 0;
-      targetY = xOrPos.y !== undefined ? xOrPos.y : 0.35;
-      targetZ = xOrPos.z ?? 0;
+    } else if (xOrPos && typeof xOrPos === 'object') {
+      targetX = typeof xOrPos.x === 'number' ? xOrPos.x : 0;
+      targetY = typeof xOrPos.y === 'number' ? xOrPos.y : 0.35;
+      targetZ = typeof xOrPos.z === 'number' ? xOrPos.z : 0;
     }
 
-    // Consulta en grilla 2D
+    // 1. Calor acumulado de la grilla 2D
+    let gridHeat = 0;
     const stepX = (GRID_BOUNDS.maxX - GRID_BOUNDS.minX) / GRID_RES;
     const stepZ = (GRID_BOUNDS.maxZ - GRID_BOUNDS.minZ) / GRID_RES;
     const cellX = Math.floor((targetX - GRID_BOUNDS.minX) / stepX);
     const cellZ = Math.floor((targetZ - GRID_BOUNDS.minZ) / stepZ);
 
-    let gridHeat = 0;
     if (cellX >= 0 && cellX < GRID_RES && cellZ >= 0 && cellZ < GRID_RES) {
-      gridHeat = thermalGrid[cellZ * GRID_RES + cellX];
+      const idx = cellZ * GRID_RES + cellX;
+      gridHeat = thermalGrid[idx] || 0;
     }
 
-    // Radiación directa inversa al cuadrado de las brasas vivas
-    let directHeat = 0;
+    // 2. Radiación directa puntual por proximidad a cada brasa viva
+    let directRadiation = 0;
     for (const ember of embers) {
       if (ember.temperature <= 0.01) continue;
       const dx = targetX - ember.position[0];
       const dy = targetY - ember.position[1];
       const dz = targetZ - ember.position[2];
       const distSq = dx * dx + dy * dy + dz * dz;
-
-      // Calor inversamente proporcional a la distancia al cuadrado
-      if (distSq < 1.0) {
-        directHeat += (ember.temperature * 0.9) / (distSq + 0.06);
-      }
+      directRadiation += (ember.temperature * 0.45) / (distSq + 0.12);
     }
 
-    return gridHeat * 0.4 + directHeat * 0.6;
+    return gridHeat * 0.35 + directRadiation * 0.65;
   }
 }));

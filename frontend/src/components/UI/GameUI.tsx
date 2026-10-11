@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAsadoStore, generateUniqueMeatId } from '../../store/useAsadoStore';
 
 export const GameUI: React.FC = () => {
@@ -24,17 +24,15 @@ export const GameUI: React.FC = () => {
   const startPlacingMeat = useAsadoStore((state) => state.startPlacingMeat);
   const cancelPlacingMeat = useAsadoStore((state) => state.cancelPlacingMeat);
 
-  const handleStartGame = () => {
-    // Si no hay carnes en la parrilla al comenzar, añadimos el corte inicial
-    if (meats.length === 0) {
-      addMeat({
-        id: 'corte-tira-base',
-        cut: 'Tira de Asado Criolla',
-        position: [0, 0.42, 0]
-      });
+  // Modal informativo opcional sin bloquear el Canvas 3D
+  const [showLoreModal, setShowLoreModal] = useState(false);
+
+  // Asegura que el juego inicie en estado interactivo 'playing' para visibilidad de la escena 3D y herramientas
+  useEffect(() => {
+    if (stage === 'menu') {
+      setStage('playing');
     }
-    setStage('playing');
-  };
+  }, [stage, setStage]);
 
   const handleAddNewMeat = () => {
     const cuts = ['Vacío Pampeano', 'Tira de Asado', 'Entraña Criolla', 'Bife de Chorizo'];
@@ -45,57 +43,18 @@ export const GameUI: React.FC = () => {
     addMeat({
       id: newId,
       cut: randomCut,
-      position: [0, 0.42, 0]
+      position: [0, 0.38, 0]
     });
     startPlacingMeat(newId);
   };
 
   const handleRearrangeMeat = () => {
     if (meats.length > 0) {
-      // Activa el acomodo del último corte o del corte existente
       const targetMeat = meats[meats.length - 1];
       startPlacingMeat(targetMeat.id);
     }
   };
 
-  // 1. Portada del Menú Principal
-  if (stage === 'menu') {
-    return (
-      <div style={styles.menuOverlay}>
-        <div style={styles.menuCard}>
-          <div style={styles.badge}>TRADICIÓN CRIOLLA</div>
-          <h1 style={styles.menuTitle}>Asador.js</h1>
-          <h2 style={styles.menuSubtitle}>El Ritual de las Brasas</h2>
-
-          <div style={styles.divider} />
-
-          <p style={styles.menuDescription}>
-            El fogón espera tu fuego de quebracho. Encendé la leña, aguardá las brasas al rojo vivo,
-            acarrealas con la pala bajo los hierros curados y asá los mejores cortes a fuego lento con auténtica reacción de Maillard.
-          </p>
-
-          <div style={styles.loreBox}>
-            <span style={styles.loreIcon}>🥩</span>
-            <div style={styles.loreText}>
-              <strong>Mandamiento Parrillero:</strong> Sin brasas no hay cocción.
-              Iniciá el fogón, paleá las brasas bajo la parrilla y acomodá el corte en su lugar justo.
-            </div>
-          </div>
-
-          <button
-            style={styles.startButton}
-            onClick={handleStartGame}
-            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.04)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            🔥 Iniciar Ritual del Asado
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. HUD interactivo durante el asado
   return (
     <div style={styles.hudContainer}>
       {/* Cabecera superior con estado */}
@@ -168,12 +127,30 @@ export const GameUI: React.FC = () => {
 
         <button
           style={styles.menuSmallButton}
-          onClick={() => setStage('menu')}
-          title="Volver a la portada"
+          onClick={() => setShowLoreModal(!showLoreModal)}
+          title="Ver tradición criolla"
         >
-          Menú
+          ℹ️ Info
         </button>
       </header>
+
+      {/* Modal flotante opcional de tradición criolla */}
+      {showLoreModal && (
+        <div style={styles.loreCard}>
+          <div style={styles.badge}>TRADICIÓN CRIOLLA</div>
+          <h2 style={{ fontSize: '20px', margin: '6px 0', color: '#ffcc88' }}>El Ritual del Asado</h2>
+          <p style={{ fontSize: '13px', lineHeight: '1.4', color: '#e5dcd3', margin: '8px 0' }}>
+            Encendé el fuego en el fogonero, esperá que la leña de quebracho se quiebre en brasas incandescentes y
+            trasladalas con la pala bajo los hierros curados para asar los cortes a fuego pausado.
+          </p>
+          <button
+            style={styles.closeModalButton}
+            onClick={() => setShowLoreModal(false)}
+          >
+            Entendido, a los fierros
+          </button>
+        </div>
+      )}
 
       {/* Cartel flotante durante el modo de colocación / acomodo de carne */}
       {placingMeatId && (
@@ -292,115 +269,6 @@ const getToolButtonStyle = (isActive: boolean): React.CSSProperties => ({
 });
 
 const styles: { [key: string]: React.CSSProperties } = {
-  menuOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(15, 10, 8, 0.82)',
-    backdropFilter: 'blur(6px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-    padding: '20px',
-    boxSizing: 'border-box',
-    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  },
-  menuCard: {
-    backgroundColor: '#1f1612',
-    borderStyle: 'solid',
-    borderWidth: '2px',
-    borderColor: '#8c4c23',
-    borderRadius: '16px',
-    padding: '40px 48px',
-    maxWidth: '560px',
-    width: '100%',
-    textAlign: 'center',
-    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 40px rgba(230, 90, 20, 0.25)',
-    color: '#f5efe6'
-  },
-  badge: {
-    display: 'inline-block',
-    fontSize: '11px',
-    fontWeight: '700',
-    letterSpacing: '2px',
-    textTransform: 'uppercase',
-    color: '#f39c12',
-    backgroundColor: 'rgba(243, 156, 18, 0.15)',
-    padding: '4px 12px',
-    borderRadius: '20px',
-    marginBottom: '14px',
-    borderStyle: 'solid',
-    borderWidth: '1px',
-    borderColor: 'rgba(243, 156, 18, 0.3)'
-  },
-  menuTitle: {
-    fontSize: '44px',
-    fontWeight: '900',
-    margin: '0 0 6px 0',
-    letterSpacing: '-0.5px',
-    color: '#ffddaa',
-    textShadow: '0 2px 10px rgba(255, 120, 40, 0.4)'
-  },
-  menuSubtitle: {
-    fontSize: '20px',
-    fontWeight: '400',
-    color: '#d4a373',
-    margin: '0 0 16px 0',
-    fontStyle: 'italic'
-  },
-  divider: {
-    width: '70px',
-    height: '3px',
-    backgroundColor: '#e65c00',
-    margin: '0 auto 20px auto',
-    borderRadius: '2px'
-  },
-  menuDescription: {
-    fontSize: '15px',
-    lineHeight: '1.6',
-    color: '#c9b7a7',
-    marginBottom: '24px'
-  },
-  loreBox: {
-    display: 'flex',
-    alignItems: 'center',
-    textAlign: 'left',
-    backgroundColor: 'rgba(40, 25, 18, 0.8)',
-    borderLeftStyle: 'solid',
-    borderLeftWidth: '4px',
-    borderLeftColor: '#f39c12',
-    padding: '12px 16px',
-    borderRadius: '8px',
-    marginBottom: '28px',
-    gap: '12px'
-  },
-  loreIcon: {
-    fontSize: '24px'
-  },
-  loreText: {
-    fontSize: '13px',
-    color: '#f1e3d3',
-    lineHeight: '1.4'
-  },
-  startButton: {
-    width: '100%',
-    padding: '16px 24px',
-    fontSize: '18px',
-    fontWeight: '700',
-    color: '#ffffff',
-    background: 'linear-gradient(135deg, #d35400 0%, #b83b00 100%)',
-    borderStyle: 'none',
-    borderWidth: '0px',
-    borderColor: 'transparent',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    boxShadow: '0 6px 20px rgba(211, 84, 0, 0.45)',
-    transition: 'all 0.2s ease',
-    letterSpacing: '0.5px'
-  },
   hudContainer: {
     position: 'absolute',
     top: 0,
@@ -408,105 +276,99 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: '100%',
     height: '100%',
     pointerEvents: 'none',
+    zIndex: 10,
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    padding: '20px',
+    padding: '18px 24px',
     boxSizing: 'border-box',
     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    zIndex: 50
+    color: '#f5efe6'
   },
   topBar: {
+    pointerEvents: 'auto',
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    flexWrap: 'wrap',
-    pointerEvents: 'auto'
+    backgroundColor: 'rgba(25, 18, 14, 0.85)',
+    backdropFilter: 'blur(8px)',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: '#5c331a',
+    borderRadius: '14px',
+    padding: '8px 16px',
+    alignSelf: 'center',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)'
   },
   logoBadge: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    backgroundColor: 'rgba(25, 18, 14, 0.85)',
-    borderStyle: 'solid',
-    borderWidth: '1px',
-    borderColor: '#7a3e1b',
-    padding: '8px 16px',
-    borderRadius: '24px',
-    backdropFilter: 'blur(4px)'
+    gap: '6px',
+    fontWeight: '800',
+    color: '#ff9436',
+    fontSize: '16px'
   },
   logoText: {
-    color: '#ffe5cc',
-    fontWeight: '700',
-    fontSize: '14px'
+    letterSpacing: '0.5px'
   },
   infoBadge: {
-    backgroundColor: 'rgba(25, 18, 14, 0.85)',
+    fontSize: '13px',
+    color: '#d4c5b9',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    padding: '4px 10px',
+    borderRadius: '8px',
     borderStyle: 'solid',
     borderWidth: '1px',
-    borderColor: '#5a3017',
-    padding: '8px 14px',
-    borderRadius: '20px',
-    color: '#d6c2b0',
-    fontSize: '13px',
-    backdropFilter: 'blur(4px)'
+    borderColor: 'rgba(255, 255, 255, 0.08)'
   },
   fogonBadge: {
-    backgroundColor: 'rgba(35, 20, 14, 0.9)',
+    fontSize: '13px',
+    color: '#ffddaa',
+    backgroundColor: 'rgba(100, 30, 10, 0.45)',
+    padding: '4px 12px',
+    borderRadius: '8px',
     borderStyle: 'solid',
     borderWidth: '1px',
-    borderColor: '#a04000',
-    padding: '6px 14px',
-    borderRadius: '20px',
-    color: '#ffddaa',
-    fontSize: '13px',
-    backdropFilter: 'blur(4px)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
+    borderColor: 'rgba(230, 90, 20, 0.3)'
   },
   actionPill: {
-    backgroundColor: '#7a3e1b',
+    backgroundColor: '#8b4513',
     color: '#ffffff',
-    borderStyle: 'none',
-    borderRadius: '12px',
+    border: 'none',
+    borderRadius: '6px',
     padding: '4px 10px',
     fontSize: '12px',
     fontWeight: '600',
     cursor: 'pointer'
   },
   actionPillHot: {
-    backgroundColor: '#d35400',
+    backgroundColor: '#e65100',
     color: '#ffffff',
-    borderStyle: 'none',
-    borderRadius: '12px',
+    border: 'none',
+    borderRadius: '6px',
     padding: '4px 10px',
     fontSize: '12px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 0 10px rgba(211, 84, 0, 0.6)'
+    boxShadow: '0 0 10px rgba(230, 81, 0, 0.7)'
   },
   secondaryButton: {
-    backgroundColor: 'rgba(40, 25, 18, 0.9)',
-    color: '#ffbb77',
-    borderStyle: 'solid',
-    borderWidth: '1px',
-    borderColor: '#a04000',
-    borderRadius: '20px',
-    padding: '8px 16px',
+    backgroundColor: '#9c3d18',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '6px 14px',
     fontSize: '13px',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'all 0.15s ease'
+    transition: 'background-color 0.15s ease'
   },
   rearrangeButton: {
-    backgroundColor: 'rgba(50, 32, 20, 0.9)',
-    color: '#ffcc66',
-    borderStyle: 'solid',
-    borderWidth: '1px',
-    borderColor: '#e67e22',
-    borderRadius: '20px',
-    padding: '8px 14px',
+    backgroundColor: '#34495e',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '6px 12px',
     fontSize: '13px',
     fontWeight: '600',
     cursor: 'pointer'
@@ -514,100 +376,134 @@ const styles: { [key: string]: React.CSSProperties } = {
   cancelPlacingButton: {
     backgroundColor: '#27ae60',
     color: '#ffffff',
-    borderStyle: 'none',
-    borderRadius: '20px',
-    padding: '8px 16px',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '6px 14px',
     fontSize: '13px',
     fontWeight: '700',
     cursor: 'pointer',
-    boxShadow: '0 0 12px rgba(39, 174, 96, 0.5)'
+    boxShadow: '0 0 12px rgba(39, 174, 96, 0.6)'
   },
   menuSmallButton: {
-    backgroundColor: 'rgba(25, 18, 14, 0.85)',
-    color: '#a89485',
+    backgroundColor: 'transparent',
+    color: '#b0a090',
     borderStyle: 'solid',
     borderWidth: '1px',
-    borderColor: '#4a2815',
-    borderRadius: '20px',
-    padding: '8px 14px',
-    fontSize: '13px',
+    borderColor: '#5c331a',
+    borderRadius: '8px',
+    padding: '6px 10px',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  loreCard: {
+    pointerEvents: 'auto',
+    position: 'absolute',
+    top: '75px',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(25, 18, 14, 0.94)',
+    border: '2px solid #8c4c23',
+    borderRadius: '12px',
+    padding: '16px 24px',
+    maxWidth: '440px',
+    boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
+    textAlign: 'center'
+  },
+  badge: {
+    display: 'inline-block',
+    fontSize: '10px',
+    fontWeight: '700',
+    letterSpacing: '1px',
+    color: '#f39c12',
+    backgroundColor: 'rgba(243, 156, 18, 0.15)',
+    padding: '2px 8px',
+    borderRadius: '12px'
+  },
+  closeModalButton: {
+    marginTop: '10px',
+    backgroundColor: '#b34714',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '6px 14px',
+    fontSize: '12px',
+    fontWeight: '600',
     cursor: 'pointer'
   },
   placingBanner: {
+    pointerEvents: 'none',
     alignSelf: 'center',
     backgroundColor: 'rgba(211, 84, 0, 0.92)',
     color: '#ffffff',
-    padding: '12px 24px',
-    borderRadius: '30px',
+    padding: '8px 20px',
+    borderRadius: '20px',
     fontSize: '14px',
-    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(211, 84, 0, 0.4)',
-    pointerEvents: 'auto',
-    animation: 'pulse 1.5s infinite ease-in-out'
+    fontWeight: '500',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+    marginTop: '8px'
   },
   tipBox: {
+    pointerEvents: 'none',
     alignSelf: 'center',
+    backgroundColor: 'rgba(20, 15, 12, 0.75)',
+    borderStyle: 'solid',
+    borderWidth: '1px',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '20px',
+    padding: '6px 18px',
+    fontSize: '13px',
+    color: '#d6c7b8',
+    backdropFilter: 'blur(4px)',
+    marginTop: '6px'
+  },
+  meatsStatusPanel: {
+    pointerEvents: 'auto',
+    position: 'absolute',
+    left: '24px',
+    bottom: '24px',
     backgroundColor: 'rgba(25, 18, 14, 0.88)',
     borderStyle: 'solid',
     borderWidth: '1px',
-    borderColor: '#7a3e1b',
-    padding: '10px 22px',
-    borderRadius: '24px',
-    color: '#f0e3d5',
-    fontSize: '13px',
-    backdropFilter: 'blur(4px)',
-    maxWidth: '680px',
-    textAlign: 'center',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)'
-  },
-  meatsStatusPanel: {
-    position: 'absolute',
-    right: '20px',
-    top: '75px',
-    backgroundColor: 'rgba(25, 18, 14, 0.85)',
-    borderStyle: 'solid',
-    borderWidth: '1px',
-    borderColor: '#7a3e1b',
+    borderColor: '#5c331a',
     borderRadius: '12px',
     padding: '12px 16px',
-    backdropFilter: 'blur(4px)',
     minWidth: '220px',
-    pointerEvents: 'auto'
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)'
   },
   panelTitle: {
     fontSize: '12px',
     fontWeight: '700',
-    color: '#ffbb77',
-    marginBottom: '8px',
     textTransform: 'uppercase',
-    letterSpacing: '1px'
+    letterSpacing: '0.8px',
+    color: '#ff9436',
+    marginBottom: '8px',
+    borderBottomStyle: 'solid',
+    borderBottomWidth: '1px',
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    paddingBottom: '4px'
   },
   meatRow: {
     display: 'flex',
     justifyContent: 'space-between',
+    alignItems: 'center',
     fontSize: '12px',
-    color: '#ece1d5',
-    padding: '4px 0',
-    borderBottomStyle: 'solid',
-    borderBottomWidth: '1px',
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)'
+    padding: '3px 0'
   },
   toolbarWrapper: {
-    display: 'flex',
-    justifyContent: 'center',
     pointerEvents: 'auto',
-    marginBottom: '10px'
+    alignSelf: 'center',
+    marginTop: 'auto'
   },
   toolbar: {
     display: 'flex',
     gap: '12px',
-    backgroundColor: 'rgba(20, 14, 10, 0.9)',
+    backgroundColor: 'rgba(18, 12, 9, 0.88)',
+    backdropFilter: 'blur(10px)',
     borderStyle: 'solid',
     borderWidth: '1px',
-    borderColor: '#5a3017',
-    padding: '8px 12px',
-    borderRadius: '18px',
-    backdropFilter: 'blur(6px)',
-    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6)'
+    borderColor: '#5c331a',
+    borderRadius: '16px',
+    padding: '10px 14px',
+    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
   },
   toolIcon: {
     fontSize: '22px',
@@ -619,6 +515,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   toolSub: {
     fontSize: '10px',
-    opacity: 0.8
+    opacity: 0.7,
+    marginTop: '2px'
   }
 };

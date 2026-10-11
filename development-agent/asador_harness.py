@@ -11,6 +11,9 @@ from tools.assets_tools import inspect_3d_models
 from tools.package_tools import inspect_dependencies
 from tools.rag_tools import consult_graphics_expert
 from tools.git_tools import push_to_repository
+from pathlib import Path
+from tools.browser_tools import inspect_running_game
+from PIL import Image
 
 # Carga las variables definidas en el archivo .env en os.environ
 load_dotenv()
@@ -84,19 +87,46 @@ def execute_objective(objective: str, max_iterations: int = 5, model_id: str = "
         print("[HARNESS] Ejecutando verificación de build...")
         verification = run_tests()
 
-        # 3. ¿Pasa las verificaciones?[cite: 1]
+        # 3. ¿Pasa las verificaciones?
         if verification.startswith("SUCCESS"):
-            print("[HARNESS] ✓ Las verificaciones pasaron sin errores.")
+            print("[HARNESS] ✓ Las verificaciones de build pasaron sin errores.")
             
-            # Revisar el resultado y evaluar si el objetivo se cumplió[cite: 1]
-      # Revisar el resultado y evaluar si el objetivo se cumplió
-            eval_prompt = (
-                "El build pasó con éxito. Revisa tus cambios.\n"
-                "¿Consideras que el objetivo propuesto está CUMPLIDO o requieres más cambios?\n"
-                "- Si está CUMPLIDO: ejecuta push_to_repository y responde con 'OBJETIVO_CUMPLIDO'.\n"
-                "- Si NO: indica 'OBJETIVO_INCOMPLETO' y continúa editando."
+            # --- VERIFICACIÓN VISUAL Y DE COMPORTAMIENTO ---
+            print("[HARNESS] Ejecutando inspección del navegador en vivo...")
+            browser_feedback = inspect_running_game("http://localhost:5173")
+            print(f"[REPORTE NAVEGADOR]:\n{browser_feedback}\n")
+
+            screenshot_path = Path("debug_screen.png")
+
+            # Armamos el prompt multimodal con chequeos visuales y de animación
+            eval_instructions = (
+                "El build compiló con éxito y se inspeccionó la app web en tiempo real.\n"
+                f"Reporte de consola y runtime:\n{browser_feedback}\n\n"
+                "CRITERIOS DE ACEPTACIÓN VISUAL Y FUNCIONAL:\n"
+                "1. Escala y modelos: ¿Los cortes y la parrilla son visibles y tienen escala realista?\n"
+                "2. Consola: ¿Hay advertencias de keys duplicadas, buffers de Three.js o errores de físicas?\n"
+                "3. Herramientas y Animaciones: Revisa si los utensilios (pala, atizador, tenedor) "
+                "tienen interactividad o animaciones activas (ej. interpolación al moverse, oscilación rústica "
+                "en primera persona o feedback al usarlos con useFrame/GSAP). Si los utensilios son estáticos o flotan rígidos sin animación, reporta 'OBJETIVO_INCOMPLETO'.\n"
+                "4. Fogón y brasas: ¿El estado inicial no tiene brasas saturando la parrilla?\n\n"
+                "EVALUACIÓN:\n"
+                "- Si cumple todos los criterios: llama a push_to_repository y responde 'OBJETIVO_CUMPLIDO'.\n"
+                "- Si falta animación, los modelos no se ven o hay errores: detalla exactamente qué archivos "
+                "debes modificar, responde 'OBJETIVO_INCOMPLETO' y planifica la corrección."
             )
-            eval_res = chat.send_message(eval_prompt)
+
+            eval_contents = [eval_instructions]
+
+            # Inyección de la captura de pantalla para visión multimodal
+            if screenshot_path.exists():
+                try:
+                    img = Image.open(screenshot_path)
+                    eval_contents.append(img)
+                    print("[HARNESS] Captura de pantalla (debug_screen.png) adjuntada para análisis visual.")
+                except Exception as e:
+                    print(f"[HARNESS] Advertencia: No se pudo cargar la imagen para visión: {e}")
+
+            eval_res = chat.send_message(eval_contents)
 
             # 1. Extracción segura del texto y detección de tool calls
             eval_text = eval_res.text or ""
@@ -109,14 +139,18 @@ def execute_objective(objective: str, max_iterations: int = 5, model_id: str = "
             else:
                 print("[EVALUACIÓN]: Respuesta vacía sin llamadas.")
 
-            # 2. Verificación robusta: se considera cumplido si dice la palabra clave O si llamó a push_to_repository
+            # 2. Verificación de cierre
             cumplido = "OBJETIVO_CUMPLIDO" in eval_text or "push_to_repository" in called_tools
 
             if cumplido:
                 print(f"[HARNESS] Proceso finalizado. Cambios enviados al repositorio.")
                 return True
             else:
-                prompt = "Continúa con la siguiente parte del objetivo y edita el código."
+                # El agente detectó fallos visuales o falta de animaciones
+                prompt = (
+                    f"El análisis visual o funcional detectó problemas:\n{eval_text}\n"
+                    "Corrige el código implementando las animaciones/escalas faltantes usando write_file."
+                )
         else:
             # No pasa las verificaciones -> Analizar errores y logs[cite: 1]
             print("[HARNESS] ✗ Fallo en las verificaciones.")

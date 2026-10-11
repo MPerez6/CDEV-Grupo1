@@ -1,9 +1,10 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { RigidBody } from '@react-three/rapier';
-import { useGLTF, Center } from '@react-three/drei';
+import { RigidBody, CuboidCollider } from '@react-three/rapier';
+import { Center, useGLTF } from '@react-three/drei';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
 import { Color, InstancedMesh, Object3D, Vector3 } from 'three';
 import { useAsadoStore } from '../../store/useAsadoStore';
+import { SafeGLTF } from '../Common/SafeModelLoader';
 
 const GRILL_MODEL_PATH = '/models/outdoor+barbecue+grill+3d+model.glb';
 
@@ -21,7 +22,6 @@ const RustSparks: React.FC<{ activePoints: Vector3[] }> = ({ activePoints }) => 
   const particles = useRef<RustParticle[]>([]);
   const maxParticles = 60;
 
-  // Si hay nuevos puntos de cepillado, emitimos partículas
   useMemo(() => {
     for (const pt of activePoints) {
       for (let i = 0; i < 4; i++) {
@@ -44,7 +44,6 @@ const RustSparks: React.FC<{ activePoints: Vector3[] }> = ({ activePoints }) => 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
 
-    // Actualizar físicas simples de partículas
     const alive: RustParticle[] = [];
     for (let i = 0; i < particles.current.length; i++) {
       const p = particles.current[i];
@@ -76,6 +75,29 @@ const RustSparks: React.FC<{ activePoints: Vector3[] }> = ({ activePoints }) => 
   );
 };
 
+// Fallback estilizado de la estructura de la parrilla si el modelo GLB no se encuentra
+const GrillFallback: React.FC<{ width: number }> = ({ width }) => (
+  <group position={[0, 0, 0]}>
+    {/* Patas de hierro de la parrilla */}
+    <mesh position={[-(width / 2) - 0.06, 0.15, -1.9]} castShadow>
+      <cylinderGeometry args={[0.02, 0.02, 0.3]} />
+      <meshStandardMaterial color="#1e1e1e" metalness={0.8} roughness={0.4} />
+    </mesh>
+    <mesh position={[(width / 2) + 0.06, 0.15, -1.9]} castShadow>
+      <cylinderGeometry args={[0.02, 0.02, 0.3]} />
+      <meshStandardMaterial color="#1e1e1e" metalness={0.8} roughness={0.4} />
+    </mesh>
+    <mesh position={[-(width / 2) - 0.06, 0.15, 1.9]} castShadow>
+      <cylinderGeometry args={[0.02, 0.02, 0.3]} />
+      <meshStandardMaterial color="#1e1e1e" metalness={0.8} roughness={0.4} />
+    </mesh>
+    <mesh position={[(width / 2) + 0.06, 0.15, 1.9]} castShadow>
+      <cylinderGeometry args={[0.02, 0.02, 0.3]} />
+      <meshStandardMaterial color="#1e1e1e" metalness={0.8} roughness={0.4} />
+    </mesh>
+  </group>
+);
+
 export const Grill: React.FC = () => {
   const numBars = 29;
   const barSpacing = 0.12;
@@ -85,12 +107,12 @@ export const Grill: React.FC = () => {
   const cleanGrill = useAsadoStore((state) => state.cleanGrill);
   const selectedTool = useAsadoStore((state) => state.selectedTool);
   const distribuirBrasasEnParrilla = useAsadoStore((state) => state.distribuirBrasasEnParrilla);
+  const placingMeatId = useAsadoStore((state) => state.placingMeatId);
+  const setMeatPosition = useAsadoStore((state) => state.setMeatPosition);
+  const finishPlacingMeat = useAsadoStore((state) => state.finishPlacingMeat);
 
   const [activePoints, setActivePoints] = useState<Vector3[]>([]);
   const isPointerDownRef = useRef(false);
-
-  // Carga del modelo GLB con Center según especificación de escala visible adecuada
-  const { scene: grillModel } = useGLTF(GRILL_MODEL_PATH);
 
   // Material de las barras de la parrilla que transiciona de oxidado a limpio/curado
   const barColor = useMemo(() => {
@@ -119,9 +141,28 @@ export const Grill: React.FC = () => {
     }
   };
 
+  // Manejo de arrastrar y soltar la carne en la posición deseada de la parrilla
+  const handlePlacingPointerMove = (e: ThreeEvent<PointerEvent>) => {
+    if (placingMeatId) {
+      e.stopPropagation();
+      // Mantiene el corte a la altura justa sobre los hierros
+      setMeatPosition(placingMeatId, [e.point.x, 0.38, e.point.z]);
+    }
+  };
+
+  const handlePlacingPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (placingMeatId) {
+      e.stopPropagation();
+      finishPlacingMeat(placingMeatId, [e.point.x, 0.38, e.point.z]);
+    }
+  };
+
   return (
     <>
-      <RigidBody type="fixed" colliders="trimesh">
+      <RigidBody type="fixed" colliders={false}>
+        {/* Colisionador plano superior calibrado: los cortes se asientan firmes sobre los hierros */}
+        <CuboidCollider args={[width / 2 + 0.12, 0.02, 2.05]} position={[0, 0.3, 0]} friction={0.9} />
+
         <group position={[0, 0.3, 0]}>
           {/* Grilla principal de varillas de asado argentino */}
           {Array.from({ length: numBars }).map((_, i) => (
@@ -168,20 +209,34 @@ export const Grill: React.FC = () => {
             <boxGeometry args={[width + 0.16, 0.12, 0.06]} />
             <meshStandardMaterial color="#2b2b2b" metalness={0.8} roughness={0.3} />
           </mesh>
-
-          {/* Plano de colisión superior para la carne */}
-          <mesh position={[0, -0.01, 0]} visible={false}>
-            <boxGeometry args={[width + 0.1, 0.02, 4.0]} />
-          </mesh>
         </group>
       </RigidBody>
 
-      {/* Modelo GLB envuelto en <Center> de drei con escala adecuada */}
+      {/* Carga defensiva del modelo 3D GLB con logs de Bounding Box y fallback elegante */}
       <group position={[0, -0.08, 0]}>
-        <Center scale={0.35}>
-          <primitive object={grillModel.clone()} />
-        </Center>
+        <SafeGLTF
+          modelPath={GRILL_MODEL_PATH}
+          fallback={<GrillFallback width={width} />}
+        >
+          {({ scene }) => (
+            <Center scale={0.35}>
+              <primitive object={scene.clone()} />
+            </Center>
+          )}
+        </SafeGLTF>
       </group>
+
+      {/* PLANO HORIZONTAL INVISIBLE PARA ARRASTRAR Y ASENTAR CARNE EXACTAMENTE EN SU LUGAR */}
+      <mesh
+        position={[0, 0.33, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        onPointerMove={handlePlacingPointerMove}
+        onPointerDown={handlePlacingPointerDown}
+        visible={false}
+      >
+        <planeGeometry args={[width + 0.3, 4.1]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
 
       {/* Zona interactiva bajo la parrilla para sembrar/distribuir brasas con pala o atizador */}
       <mesh
@@ -208,5 +263,9 @@ export const Grill: React.FC = () => {
   );
 };
 
-// Precarga del modelo GLB para rendimiento óptimo
-useGLTF.preload(GRILL_MODEL_PATH);
+// Precarga defensiva del modelo GLB
+try {
+  useGLTF.preload(GRILL_MODEL_PATH);
+} catch (e) {
+  // Ignorar en entorno SSR
+}

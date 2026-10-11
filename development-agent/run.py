@@ -1,41 +1,34 @@
 from asador_harness import execute_objective
 
-hito_3_demo_completa = (
-    "Hito 3 - Demo Completa de Asado Simulator (Fuego Inicial, Modelos GLB, Ubicación y Termodinámica):\n\n"
-    "1. CONSULTA EXPERTA PREVIA (RAG):\n"
-    "   - Antes de modificar componentes, consulta con consult_graphics_expert sobre patrones de:\n"
-    "     a) 'Rapier kinematic translation drag drop plane raycasting'\n"
-    "     b) 'useGLTF Center normalize scale'\n"
-    "     c) 'Thermodynamics delta time throttling state'\n\n"
-    "2. CICLO INICIAL DE BRASAS Y FOGÓN:\n"
-    "   - En useAsadoStore.ts, el array inicial de 'embers' bajo la parrilla DEBE comenzar VACÍO ([]).\n"
-    "   - La grilla térmica debe registrar 0 calor al inicio.\n"
-    "   - El jugador debe iniciar el fuego en Fogon.tsx. Una vez encendido y quemada la leña, "
-    "las brasas generadas quedan disponibles en el fogón para ser arrastradas o paleadas bajo la parrilla.\n\n"
-    "3. IMPORTACIÓN, ESCALADO Y COLISIONADORES DE MODELOS GLB:\n"
-    "   - Revisa los modelos en public/models con inspect_3d_models (ej. carne.glb, tira.glb, parrilla.glb).\n"
-    "   - En MeatItemComponent.tsx, envuelve la escena importada con <Center> de @react-three/drei y aplica "
-    "una escala normalizada visible y realista (por ejemplo, entre 0.25 y 0.4 para que un bife o tira tenga ~30-40 cm de largo).\n"
-    "   - En @react-three/rapier, configura el RigidBody del corte con colliders='cuboid' de dimensiones adecuadas "
-    "o usa un collider compuesto que impida físicamente que el corte se deslice entre las varillas de la parrilla.\n\n"
-    "4. SISTEMA DE UBICACIÓN Y ACOMODO DE LA CARNE:\n"
-    "   - Implementa mecánica para colocar o mover la carne: cuando se va a colocar un corte nuevo o se selecciona "
-    "uno existente con el tenedor o la mano, usa un plano invisible horizontal a la altura de los hierros (y ≈ 0.35) "
-    "con eventos onPointerMove/onPointerDown para que el corte siga el cursor y se pose exactamente en la parrilla al hacer clic.\n\n"
-    "5. RECALIBRACIÓN TERMODINÁMICA Y REACCIÓN DE MAILLARD:\n"
-    "   - En useAsadoStore.ts y MeatItemComponent.tsx, ajusta el ritmo de cocción para que NO se queme en segundos.\n"
-    "   - Introduce inercia térmica: el 'cookLevel' (0.0 crudo -> 1.0 a punto -> 2.0 quemado) debe subir lentamente "
-    "en función del delta de useFrame (ej. multiplicar por 0.0005 o 0.001 en lugar de valores altos directos).\n"
-    "   - Si no hay brasas debajo (heat < 0.05), el corte no se cocina.\n"
-    "   - El shader de Maillard debe transicionar gradualmente: rojo brillante -> marrón dorado/costra -> tostado -> carbón.\n\n"
-    "6. COMPILACIÓN Y VERIFICACIÓN:\n"
-    "   - Ejecuta run_tests (npm run build). Corrige cualquier error de tipos en TypeScript o props de R3F.\n"
-    "   - Una vez que la compilación sea exitosa y la demo esté lista, haz push al repositorio."
+hito_3_demo_inspeccionada = (
+    "Hito 3 - Demo Completa de Asado Simulator (Logs de Carga 3D, Animaciones de Utensilios y Físicas Calibradas):\n\n"
+    "1. LOGS DETALLADOS DE IMPORTACIÓN 3D:\n"
+    "   - En cada componente que cargue modelos GLB (Grill.tsx, MeatItemComponent.tsx, PlayerTools.tsx, Fogon.tsx):\n"
+    "     a) Agrega console.log al montar el modelo mostrando: nombre del archivo, nodos encontrados, y dimensiones de la Bounding Box.\n"
+    "     b) Envuelve la carga de useGLTF con manejo defensivo para que, si un .glb falla o la ruta no existe, "
+    "haga un console.error explicativo y renderice una primitiva estilizada de fallback sin romper el Canvas de WebGL.\n\n"
+    "2. CORRECCIÓN VISUAL Y ESCALAS DE CARNE Y PARRILLA:\n"
+    "   - Los cortes de carne NO deben caerse entre los fierros ni verse diminutos o desproporcionados.\n"
+    "   - Normaliza su escala con <Center> y ajusta el colisionador de Rapier (RigidBody type='dynamic' con cuboid bien dimensionado o compound collider).\n"
+    "   - Implementa el plano horizontal invisible en la parrilla para permitir arrastrar y soltar la carne exactamente en la posición deseada.\n\n"
+    "3. ANIMACIONES E INTERACTIVIDAD DE UTENSILIOS (PALA, ATIZADOR, TENEDOR):\n"
+    "   - Las herramientas del asador en primera persona (PlayerTools.tsx) NO deben flotar rígidas ni estáticas.\n"
+    "   - Implementa movimiento e interpolación fluida en useFrame (sway o balanceo suave al mover la cámara/mouse con THREE.MathUtils.lerp).\n"
+    "   - Agrega animación de interacción o feedback visual:\n"
+    "     * Tenedor: movimiento de estocada hacia adelante al hacer clic para pinchar/voltear la carne.\n"
+    "     * Pala/Atizador: movimiento hacia abajo/empuje al interactuar con el fogón o trasladar brasas.\n\n"
+    "4. CICLO DE FUEGO Y COCCIÓN CALIBRADA:\n"
+    "   - La parrilla inicia sin brasas (embers = [] en useAsadoStore).\n"
+    "   - El fogón genera brasas al quemar leña/carbón que el jugador traslada bajo la parrilla.\n"
+    "   - La carne no se quema en segundos: aplica un factor de inercia térmica realista en el cookLevel.\n\n"
+    "5. AMBIENTACIÓN PAMPEANA Y CÁMARA:\n"
+    "   - Asegura la ambientación con Sky rústico, plano de pasto y límites angulares en OrbitControls (POV del asador).\n\n"
+    "6. VERIFICACIÓN COMPLETA:\n"
+    "   - Ejecuta run_tests (build sin errores de TypeScript).\n"
+    "   - Al compilar, el harness abrirá la app en el navegador para capturar debug_screen.png y registrar los logs de consola.\n"
+    "   - Revisa la captura: si los modelos se ven correctamente escalados, las herramientas tienen sus animaciones activas y no hay errores en consola, haz push al repositorio."
 )
 
 if __name__ == "__main__":
-    exito = execute_objective(objective=hito_3_demo_completa, max_iterations=5)
-    if exito:
-        print("\n[OK] ¡Hito 3: Demo Completa de Asado Simulator implementada exitosamente!")
-    else:
-        print("\n[REVISAR] El harness finalizó con bloqueos o iteraciones pendientes.")
+    # max_iterations=5 como límite máximo, terminará en cuanto la validación visual y de build aprueben
+    execute_objective(objective=hito_3_demo_inspeccionada, max_iterations=5)

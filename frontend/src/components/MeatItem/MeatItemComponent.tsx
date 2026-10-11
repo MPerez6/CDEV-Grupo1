@@ -1,9 +1,10 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
-import { useGLTF, Center } from '@react-three/drei';
+import { Center, useGLTF } from '@react-three/drei';
 import { RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier';
 import { Mesh, ShaderMaterial, Color, Vector3 } from 'three';
 import { useAsadoStore, MeatItem } from '../../store/useAsadoStore';
+import { SafeGLTF } from '../Common/SafeModelLoader';
 
 const MEAT_MODEL_PATH = '/models/meat_piece_raw.glb';
 
@@ -78,6 +79,13 @@ interface Props {
   meat: MeatItem;
 }
 
+// Fallback estilizado para el corte si el archivo .glb falla o no existe
+const MeatPieceFallback: React.FC<{ material: ShaderMaterial }> = ({ material }) => (
+  <mesh castShadow receiveShadow material={material}>
+    <boxGeometry args={[0.38, 0.05, 0.22]} />
+  </mesh>
+);
+
 export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null);
   const prevFlippedRef = useRef<boolean>(meat.flipped);
@@ -88,13 +96,11 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const flipMeat = useAsadoStore((state) => state.flipMeat);
   const placingMeatId = useAsadoStore((state) => state.placingMeatId);
   const startPlacingMeat = useAsadoStore((state) => state.startPlacingMeat);
+  const triggerToolAction = useAsadoStore((state) => state.triggerToolAction);
 
   const isBeingPlaced = placingMeatId === meat.id;
 
-  // Carga del modelo 3D GLB
-  const { scene } = useGLTF(MEAT_MODEL_PATH);
-
-  // Instancia independiente del ShaderMaterial de Maillard
+  // Instancia independiente del ShaderMaterial de Maillard por corte
   const maillardMaterial = useMemo(() => {
     return new ShaderMaterial({
       vertexShader,
@@ -109,26 +115,12 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     });
   }, []);
 
-  // Clona la jerarquía del modelo GLB y asigna el shader de Maillard a las mallas
-  const clonedScene = useMemo(() => {
-    const clone = scene.clone(true);
-    clone.traverse((child) => {
-      if ((child as Mesh).isMesh) {
-        const meshChild = child as Mesh;
-        meshChild.material = maillardMaterial;
-        meshChild.castShadow = true;
-        meshChild.receiveShadow = true;
-      }
-    });
-    return clone;
-  }, [scene, maillardMaterial]);
-
   // Si cambia el estado de volteo (por tenedor parrillero), aplicamos impulso físico
   useEffect(() => {
     if (prevFlippedRef.current !== meat.flipped && rigidBodyRef.current && !isBeingPlaced) {
       prevFlippedRef.current = meat.flipped;
-      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.35, z: 0 }, true);
-      rigidBodyRef.current.applyTorqueImpulse({ x: 0.14, y: 0, z: 0 }, true);
+      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.45, z: 0 }, true);
+      rigidBodyRef.current.applyTorqueImpulse({ x: 0.16, y: 0, z: 0 }, true);
     }
   }, [meat.flipped, isBeingPlaced]);
 
@@ -157,7 +149,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
     // RECALIBRACIÓN TERMODINÁMICA CON INERCIA TÉRMICA:
     // Si heat < 0.05 (sin brasas activas debajo), el corte NO se cocina.
-    // Ritmo pausado y realista: multiplicar por 0.0007 para cocción gradual y controlada.
+    // Ritmo pausado y realista: 0.00075 para cocción gradual y controlada.
     if (heat >= 0.05 && meat.cookLevel < 2.0) {
       const cookSpeed = 0.00075;
       const cookDelta = heat * cookSpeed * delta;
@@ -173,6 +165,8 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     e.stopPropagation();
 
     if (isBeingPlaced) return;
+
+    triggerToolAction();
 
     // Con click secundario (botón derecho) o si se usa tenedor con Shift, acomodar corte
     if (e.button === 2 || e.shiftKey) {
@@ -194,13 +188,13 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       ref={rigidBodyRef}
       type={isBeingPlaced ? 'kinematicPosition' : 'dynamic'}
       colliders={false}
-      friction={0.85}
-      restitution={0.08}
+      friction={0.88}
+      restitution={0.06}
       position={meat.position}
       canSleep={false}
     >
-      {/* Colisionador cuboid ajustado que impide físicamente que el corte se deslice entre los hierros */}
-      <CuboidCollider args={[0.22, 0.038, 0.16]} position={[0, 0, 0]} />
+      {/* Colisionador cuboid ajustado que impide físicamente que el corte caiga entre los fierros */}
+      <CuboidCollider args={[0.22, 0.042, 0.16]} position={[0, 0, 0]} />
 
       <group
         onPointerDown={handlePointerDown}
@@ -218,14 +212,35 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
           }
         }}
       >
-        {/* Envoltura con <Center> y escala normalizada realista (~30-35 cm de largo) */}
-        <Center scale={0.32}>
-          <primitive object={clonedScene} />
-        </Center>
+        <SafeGLTF
+          modelPath={MEAT_MODEL_PATH}
+          fallback={<MeatPieceFallback material={maillardMaterial} />}
+        >
+          {({ scene }) => {
+            const clone = scene.clone(true);
+            clone.traverse((child) => {
+              if ((child as Mesh).isMesh) {
+                const meshChild = child as Mesh;
+                meshChild.material = maillardMaterial;
+                meshChild.castShadow = true;
+                meshChild.receiveShadow = true;
+              }
+            });
+            return (
+              <Center scale={0.35}>
+                <primitive object={clone} />
+              </Center>
+            );
+          }}
+        </SafeGLTF>
       </group>
     </RigidBody>
   );
 };
 
-// Precarga del modelo GLB
-useGLTF.preload(MEAT_MODEL_PATH);
+// Precarga defensiva del modelo GLB
+try {
+  useGLTF.preload(MEAT_MODEL_PATH);
+} catch (e) {
+  // Ignorar en SSR
+}
