@@ -1,8 +1,8 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
-import { Center, useGLTF } from '@react-three/drei';
+import { Center } from '@react-three/drei';
 import { RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier';
-import { Mesh, ShaderMaterial, Color, Vector3, Object3D } from 'three';
+import { Mesh, ShaderMaterial, Color, Vector3, Quaternion, Object3D } from 'three';
 import { useAsadoStore, MeatItem } from '../../store/useAsadoStore';
 import { SafeGLTF } from '../Common/SafeModelLoader';
 
@@ -41,20 +41,17 @@ const fragmentShader = `
 
     // Transición gradual de Maillard en 4 etapas cromáticas
     if (cl <= 0.6) {
-      // 1. De carne vacuna fresca roja brillante a sellado inicial dorado
       float t = smoothstep(0.0, 0.6, cl);
       baseColor = mix(uRawColor, uCrustColor, t);
     } else if (cl <= 1.2) {
-      // 2. De sellado dorado a tostado a punto tradicional (jugoso por dentro, costra afuera)
       float t = smoothstep(0.6, 1.2, cl);
       baseColor = mix(uCrustColor, uTostadoColor, t);
     } else {
-      // 3. De tostado a carbón/quemado
       float t = smoothstep(1.2, 2.0, cl);
       baseColor = mix(uTostadoColor, uBurntColor, t);
     }
 
-    // Marcas de los fierros de la parrilla (grill marks) que aparecen al avanzar la cocción
+    // Marcas de los hierros de la parrilla que aparecen al avanzar la cocción
     float barPattern = sin(vWorldPos.z * 52.0);
     if (cl > 0.25 && barPattern > 0.7) {
       float markFade = smoothstep(0.25, 1.0, cl) * 0.35;
@@ -65,7 +62,6 @@ const fragmentShader = `
     vec3 sunLightDir = normalize(vec3(0.8, 2.2, 0.9));
     float diff = max(dot(vNormal, sunLightDir), 0.32);
 
-    // Resplandor cálido si mira hacia abajo hacia las brasas
     float underBounce = max(-vNormal.y, 0.0) * 0.18;
     vec3 fireWarmth = vec3(0.25, 0.08, 0.01) * underBounce;
 
@@ -74,14 +70,12 @@ const fragmentShader = `
   }
 `;
 
-// Subcomponente que clona la escena 3D y centra con escala normalizada
 interface MeatMeshProps {
   scene: Object3D;
   material: ShaderMaterial;
 }
 
 const MeatMesh: React.FC<MeatMeshProps> = ({ scene, material }) => {
-  // Clona la escena si se reutiliza el mismo modelo en múltiples cortes
   const clone = useMemo(() => scene.clone(true), [scene]);
 
   useEffect(() => {
@@ -95,18 +89,19 @@ const MeatMesh: React.FC<MeatMeshProps> = ({ scene, material }) => {
     });
   }, [clone, material]);
 
+  // Escala aumentada (~0.48): tamaño visible, suculento y contundente de asado de tira
   return (
-    <Center scale={0.3}>
+    <Center scale={0.48}>
       <primitive object={clone} />
     </Center>
   );
 };
 
-// Fallback estilizado para el corte si el archivo .glb falla o no existe
+// Fallback estilizado para el corte si el archivo .glb falla
 const MeatPieceFallback: React.FC<{ material: ShaderMaterial }> = ({ material }) => (
-  <Center scale={0.3}>
+  <Center scale={0.48}>
     <mesh castShadow receiveShadow material={material}>
-      <boxGeometry args={[0.72, 0.15, 0.48]} />
+      <boxGeometry args={[0.78, 0.18, 0.46]} />
     </mesh>
   </Center>
 );
@@ -129,31 +124,45 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
   const isBeingPlaced = placingMeatId === meat.id;
 
-  // Instancia independiente del ShaderMaterial de Maillard por corte
   const maillardMaterial = useMemo(() => {
     return new ShaderMaterial({
       vertexShader,
       fragmentShader,
       uniforms: {
         uCookLevel: { value: meat.cookLevel },
-        uRawColor: { value: new Color('#ba2626') },     // Rojo brillante de corte fresco vacuno
-        uCrustColor: { value: new Color('#8e4d25') },   // Costra sellada dorada
-        uTostadoColor: { value: new Color('#442315') }, // Tostado a punto
-        uBurntColor: { value: new Color('#14100e') }    // Carbón
+        uRawColor: { value: new Color('#ba2626') },
+        uCrustColor: { value: new Color('#8e4d25') },
+        uTostadoColor: { value: new Color('#442315') },
+        uBurntColor: { value: new Color('#14100e') }
       }
     });
   }, []);
 
-  // Impulso físico de volteo si el estado flipped cambia
+  // Volteo estable y controlado: resetea velocidades lineales y angulares a cero absoluto
   useEffect(() => {
     if (prevFlippedRef.current !== meat.flipped && rigidBodyRef.current && !isBeingPlaced) {
       prevFlippedRef.current = meat.flipped;
-      rigidBodyRef.current.applyImpulse({ x: 0, y: 1.4, z: 0 }, true);
-      rigidBodyRef.current.applyTorqueImpulse({ x: 0.15, y: 0, z: 0 }, true);
-    }
-  }, [meat.flipped, isBeingPlaced]);
 
-  // Posicionamiento kinemático mientras se ubica con el puntero y cocción lenta con inercia térmica
+      // 1. Reseteo riguroso de velocidades para que jamás salga despedido al infinito
+      rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+
+      // 2. Rotación controlada de 180° sobre el eje longitudinal (Z)
+      const curRot = rigidBodyRef.current.rotation();
+      const currentQ = new Quaternion(curRot.x, curRot.y, curRot.z, curRot.w);
+      const flipQ = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI);
+      currentQ.multiply(flipQ);
+      rigidBodyRef.current.setRotation(currentQ, true);
+
+      // 3. Pequeño micro-lift seguro para asentarse de nuevo sobre los fierros
+      const curPos = rigidBodyRef.current.translation();
+      const safeX = !isNaN(curPos.x) ? curPos.x : meat.position[0];
+      const safeY = !isNaN(curPos.y) ? Math.max(curPos.y, 0.40) + 0.02 : 0.44;
+      const safeZ = !isNaN(curPos.z) ? curPos.z : meat.position[2];
+      rigidBodyRef.current.setTranslation({ x: safeX, y: safeY, z: safeZ }, true);
+    }
+  }, [meat.flipped, isBeingPlaced, meat.position]);
+
   useFrame((_state, delta) => {
     if (isBeingPlaced && rigidBodyRef.current) {
       rigidBodyRef.current.setNextKinematicTranslation(
@@ -168,17 +177,22 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
     if (rigidBodyRef.current) {
       const translation = rigidBodyRef.current.translation();
-      currentX = translation.x;
-      currentY = translation.y;
-      currentZ = translation.z;
+      if (!isNaN(translation.x) && !isNaN(translation.y) && !isNaN(translation.z)) {
+        currentX = translation.x;
+        currentY = translation.y;
+        currentZ = translation.z;
+
+        // Red de seguridad criolla: si cae accidentalmente bajo la parrilla, reponerlo en los fierros
+        if (currentY < 0.22) {
+          rigidBodyRef.current.setTranslation({ x: currentX, y: 0.44, z: currentZ }, true);
+          rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        }
+      }
     }
 
-    // Consulta de calor en la posición física sobre la parrilla
     const heat = getHeatAtPosition(currentX, currentY, currentZ);
 
-    // CALIBRACIÓN TÉRMICA REALISTA:
-    // Si heat < 0.05 (sin brasas activas debajo), el corte NO se cocina.
-    // Ritmo pausado y gradual: 0.0006 para inercia térmica realista criolla
     if (heat >= 0.05 && meat.cookLevel < 2.0) {
       const cookSpeed = 0.0006;
       const cookDelta = heat * cookSpeed * delta;
@@ -216,13 +230,14 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       ref={rigidBodyRef}
       type={isBeingPlaced ? 'kinematicPosition' : 'dynamic'}
       colliders={false}
-      friction={0.88}
-      restitution={0.06}
+      friction={0.9}
+      restitution={0.02}
+      mass={1.5}
       position={meat.position}
       canSleep={false}
     >
-      {/* Colisionador cuboid ajustado de dimensiones reales del corte que no cae entre hierros */}
-      <CuboidCollider args={[0.22, 0.045, 0.16]} position={[0, 0, 0]} />
+      {/* Colisionador cuboid proporcional generoso: 0.72 x 0.16 x 0.48 m. Imposible colarse entre varillas */}
+      <CuboidCollider args={[0.36, 0.08, 0.24]} position={[0, 0.02, 0]} />
 
       <group
         onPointerDown={handlePointerDown}
@@ -250,10 +265,3 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     </RigidBody>
   );
 };
-
-// Precarga defensiva del modelo GLB
-try {
-  useGLTF.preload(MEAT_MODEL_PATH);
-} catch (e) {
-  // Ignorar en entorno SSR
-}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type AsadoTool = 'pala' | 'atizador' | 'tenedor' | 'cepillo';
+export type AsadoTool = 'pala' | 'atizador' | 'tenedor' | 'cepillo' | 'ninguna';
 export type GameStage = 'menu' | 'playing' | 'served';
 export type FogonStage = 'sin_fuego' | 'con_papel' | 'encendido' | 'brasas_listas';
 
@@ -35,7 +35,7 @@ export interface AsadoStore {
   // Narrativa y juego
   stage: GameStage;
   selectedTool: AsadoTool;
-  toolActionTrigger: number; // Disparador para animaciones de feedback de utensilios
+  toolActionTrigger: number;
   setStage: (stage: GameStage) => void;
   setSelectedTool: (tool: AsadoTool) => void;
   triggerToolAction: () => void;
@@ -60,7 +60,7 @@ export interface AsadoStore {
   setEmbersPos: (positions: [number, number, number][]) => void;
   addEmbersAt: (pos: [number, number, number], count?: number) => void;
   decayThermalSystem: (delta?: number) => void;
-  thermalGrid: number[]; // Grilla térmica 2D plana (GRID_RES x GRID_RES)
+  thermalGrid: number[];
   getHeatAtPosition: (
     xOrPos: number | [number, number, number] | [number, number] | { x: number; y?: number; z: number },
     yOrZ?: number,
@@ -69,9 +69,9 @@ export interface AsadoStore {
 
   // Fogón criollo y acarreo de brasas
   fogonStage: FogonStage;
-  fogonProgress: number; // 0 a 1 colapso de leña
-  fogonEmbersCount: number; // Brasas producidas en el fogón
-  carriedEmbersCount: number; // Brasas en la pala/atizador
+  fogonProgress: number;
+  fogonEmbersCount: number;
+  carriedEmbersCount: number;
   colocarPapelYFosforo: () => void;
   encenderFogon: () => void;
   avanzarFogon: (delta: number) => void;
@@ -79,12 +79,11 @@ export interface AsadoStore {
   distribuirBrasasEnParrilla: (pos: [number, number, number]) => void;
 
   // Limpieza y curado de la parrilla
-  rustLevel: number; // 1.0 (oxidada/sucia) a 0.0 (curada y limpia)
+  rustLevel: number;
   isClean: boolean;
   cleanGrill: (amount?: number) => void;
 }
 
-// Generador de IDs únicos para evitar colisión de keys
 let meatCounter = 0;
 export const generateUniqueMeatId = (prefix = 'corte'): string => {
   meatCounter += 1;
@@ -92,11 +91,9 @@ export const generateUniqueMeatId = (prefix = 'corte'): string => {
   return `${prefix}-${Date.now()}-${meatCounter}-${randomSuffix}`;
 };
 
-// Inicializa la grilla térmica 2D con ceros absolutos
 const createEmptyThermalGrid = (): number[] => new Array(GRID_RES * GRID_RES).fill(0);
 
 export const useAsadoStore = create<AsadoStore>((set, get) => ({
-  // Inicia directamente en modo de juego para que el canvas y los modelos se aprecien en tiempo real
   stage: 'playing',
   selectedTool: 'tenedor',
   toolActionTrigger: 0,
@@ -105,23 +102,20 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   setSelectedTool: (selectedTool) => set({ selectedTool }),
   triggerToolAction: () => set((state) => ({ toolActionTrigger: state.toolActionTrigger + 1 })),
 
-  // Corte inicial asegurado sobre la parrilla
   meats: [
     {
       id: 'corte-tira-base',
       cut: 'Tira de Asado Criolla',
-      position: [0, 0.42, 0],
+      position: [0, 0.44, 0],
       cookLevel: 0,
       flipped: false
     }
   ],
 
-  // Hito 3: Las brasas bajo la parrilla inician vacías ([]) y grilla en 0 calor
   embers: [],
   embersPos: [],
   thermalGrid: createEmptyThermalGrid(),
 
-  // Estado de colocación y acomodo de carne
   placingMeatId: null,
   startPlacingMeat: (id: string) => set({ placingMeatId: id }),
   finishPlacingMeat: (id: string, pos?: [number, number, number]) => {
@@ -142,13 +136,11 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     }));
   },
 
-  // Fogón y fuego inicial
   fogonStage: 'sin_fuego',
   fogonProgress: 0,
   fogonEmbersCount: 0,
   carriedEmbersCount: 0,
 
-  // Limpieza de parrilla
   rustLevel: 0.9,
   isClean: false,
 
@@ -188,12 +180,12 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     }));
   },
 
-  setEmbers: (embers) => set({
+  setEmbers: (embers: EmberData[]) => set({
     embers,
     embersPos: embers.map((e) => e.position)
   }),
 
-  setEmbersPos: (positions) => set((state) => {
+  setEmbersPos: (positions: [number, number, number][]) => set((state) => {
     const updatedEmbers: EmberData[] = positions.map((pos, i) => {
       const existing = state.embers[i];
       if (existing) {
@@ -222,7 +214,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
         newEmbers.push({
           id: `ember-added-${timestamp}-${i}-${Math.random().toString(36).substring(2, 6)}`,
           position: [pos[0] + jitterX, 0.02, pos[2] + jitterZ],
-          temperature: 0.9 + Math.random() * 0.1, // Al rojo vivo
+          temperature: 0.9 + Math.random() * 0.1,
           decayRate: 0.0018 + Math.random() * 0.001
         });
       }
@@ -234,7 +226,6 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     });
   },
 
-  // Fogón: interacción y progresión criolla
   colocarPapelYFosforo: () => {
     set((state) => {
       if (state.fogonStage === 'sin_fuego') {
@@ -257,7 +248,6 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     set((state) => {
       if (state.fogonStage !== 'encendido') return state;
 
-      // Combustión de los leños de quebracho (~10-12s hasta quebrar en brasas)
       const nextProgress = Math.min(1.0, state.fogonProgress + delta * 0.09);
 
       if (nextProgress >= 1.0) {
@@ -302,7 +292,6 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     }
   },
 
-  // Limpieza y desoxidado de la parrilla
   cleanGrill: (amount = 0.06) => {
     get().triggerToolAction();
     set((state) => {
@@ -314,11 +303,9 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     });
   },
 
-  // Simulación térmica 2D y decaimiento térmico paulatino
   decayThermalSystem: (delta = 0.016) => {
     set((state) => {
       if (state.embers.length === 0) {
-        // Si no hay brasas, el calor se disipa hasta cero absoluto
         const hasHeat = state.thermalGrid.some((h) => h > 0.001);
         if (!hasHeat) return state;
 
@@ -327,7 +314,6 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
         };
       }
 
-      // 1. Decaimiento de temperatura en las brasas individuales
       let embersChanged = false;
       const updatedEmbers = state.embers.map((ember) => {
         if (ember.temperature <= 0) return ember;
@@ -339,17 +325,15 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
         return { ...ember, temperature: newTemp };
       });
 
-      // 2. Grilla térmica 2D: acumulación y disipación paulatina
       const nextGrid = [...state.thermalGrid];
       const stepX = (GRID_BOUNDS.maxX - GRID_BOUNDS.minX) / GRID_RES;
       const stepZ = (GRID_BOUNDS.maxZ - GRID_BOUNDS.minZ) / GRID_RES;
 
-      // Disipación ambiental suave en cada celda
       for (let i = 0; i < nextGrid.length; i++) {
-        nextGrid[i] = Math.max(0, nextGrid[i] * (1 - 0.02 * delta));
+        const cellVal = nextGrid[i] ?? 0;
+        nextGrid[i] = Math.max(0, cellVal * (1 - 0.02 * delta));
       }
 
-      // Inyección de calor según posición y temperatura de brasas vivas
       for (const ember of updatedEmbers) {
         if (ember.temperature <= 0.01) continue;
 
@@ -358,7 +342,8 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
 
         if (cellX >= 0 && cellX < GRID_RES && cellZ >= 0 && cellZ < GRID_RES) {
           const idx = cellZ * GRID_RES + cellX;
-          nextGrid[idx] = Math.min(3.0, nextGrid[idx] + ember.temperature * 0.15 * delta);
+          const currentCellHeat = nextGrid[idx] ?? 0;
+          nextGrid[idx] = Math.min(3.0, currentCellHeat + ember.temperature * 0.15 * delta);
         }
       }
 
@@ -369,7 +354,6 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     });
   },
 
-  // Consulta térmica combinada (Grilla 2D + radiación directa de brasas)
   getHeatAtPosition: (
     xOrPos: number | [number, number, number] | [number, number] | { x: number; y?: number; z: number },
     yOrZ?: number,
@@ -377,60 +361,51 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   ): number => {
     const { embers, thermalGrid } = get();
 
-    // Si no hay brasas en la escena, calor es 0 garantizado
-    if (embers.length === 0) {
-      return 0;
+    if (embers.length === 0 && thermalGrid.every((h) => h <= 0.001)) {
+      return 0.0;
     }
 
-    let targetX = 0;
-    let targetY = 0.35; // Altura de los hierros
-    let targetZ = 0;
+    let px = 0;
+    let pz = 0;
 
     if (typeof xOrPos === 'number') {
-      targetX = xOrPos;
-      if (typeof optZ === 'number' && typeof yOrZ === 'number') {
-        targetY = yOrZ;
-        targetZ = optZ;
-      } else if (typeof yOrZ === 'number') {
-        targetZ = yOrZ;
-      }
+      px = xOrPos;
+      pz = typeof yOrZ === 'number' && typeof optZ === 'number' ? optZ : (yOrZ ?? 0);
     } else if (Array.isArray(xOrPos)) {
-      targetX = xOrPos[0] ?? 0;
-      if (xOrPos.length >= 3) {
-        targetY = xOrPos[1] ?? 0.35;
-        targetZ = (xOrPos as [number, number, number])[2] ?? 0;
-      } else if (xOrPos.length === 2) {
-        targetZ = xOrPos[1] ?? 0;
-      }
-    } else if (xOrPos && typeof xOrPos === 'object') {
-      targetX = typeof xOrPos.x === 'number' ? xOrPos.x : 0;
-      targetY = typeof xOrPos.y === 'number' ? xOrPos.y : 0.35;
-      targetZ = typeof xOrPos.z === 'number' ? xOrPos.z : 0;
+      px = xOrPos[0] ?? 0;
+      pz = (xOrPos.length > 2 ? xOrPos[2] : xOrPos[1]) ?? 0;
+    } else if (typeof xOrPos === 'object' && xOrPos !== null) {
+      px = xOrPos.x ?? 0;
+      pz = xOrPos.z ?? 0;
     }
 
-    // 1. Calor acumulado de la grilla 2D
-    let gridHeat = 0;
     const stepX = (GRID_BOUNDS.maxX - GRID_BOUNDS.minX) / GRID_RES;
     const stepZ = (GRID_BOUNDS.maxZ - GRID_BOUNDS.minZ) / GRID_RES;
-    const cellX = Math.floor((targetX - GRID_BOUNDS.minX) / stepX);
-    const cellZ = Math.floor((targetZ - GRID_BOUNDS.minZ) / stepZ);
+    const cellX = Math.floor((px - GRID_BOUNDS.minX) / stepX);
+    const cellZ = Math.floor((pz - GRID_BOUNDS.minZ) / stepZ);
 
+    let gridHeat = 0;
     if (cellX >= 0 && cellX < GRID_RES && cellZ >= 0 && cellZ < GRID_RES) {
-      const idx = cellZ * GRID_RES + cellX;
-      gridHeat = thermalGrid[idx] || 0;
+      const cellIdx = cellZ * GRID_RES + cellX;
+      const val = thermalGrid[cellIdx];
+      if (typeof val === 'number') {
+        gridHeat = val;
+      }
     }
 
-    // 2. Radiación directa puntual por proximidad a cada brasa viva
-    let directRadiation = 0;
+    let directHeat = 0;
     for (const ember of embers) {
       if (ember.temperature <= 0.01) continue;
-      const dx = targetX - ember.position[0];
-      const dy = targetY - ember.position[1];
-      const dz = targetZ - ember.position[2];
-      const distSq = dx * dx + dy * dy + dz * dz;
-      directRadiation += (ember.temperature * 0.45) / (distSq + 0.12);
+      const dx = px - ember.position[0];
+      const dz = pz - ember.position[2];
+      const distSq = dx * dx + dz * dz;
+
+      if (distSq < 0.6) {
+        const falloff = Math.max(0, 1 - distSq / 0.6);
+        directHeat += ember.temperature * falloff * 0.8;
+      }
     }
 
-    return gridHeat * 0.35 + directRadiation * 0.65;
+    return Math.min(3.0, gridHeat * 0.7 + directHeat);
   }
 }));

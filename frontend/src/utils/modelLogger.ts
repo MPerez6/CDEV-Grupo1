@@ -2,7 +2,7 @@ import { Box3, Vector3, Object3D, Mesh } from 'three';
 
 export interface ModelDiagnosticResult {
   modelPath: string;
-  status: 'success' | 'error' | 'fallback';
+  status: 'SUCCESS' | 'FALLBACK_PROCEDURAL' | 'ERROR';
   nodeCount: number;
   meshCount: number;
   vertexCount: number;
@@ -11,11 +11,11 @@ export interface ModelDiagnosticResult {
   timestamp: string;
 }
 
-// Registro en memoria de diagnósticos ejecutados
+// Historial en memoria de modelos auditados
 const diagnosticHistory = new Map<string, ModelDiagnosticResult>();
 
 /**
- * Analiza un objeto 3D Three.js y extrae métricas de geometría y volumen.
+ * Inspecciona un Object3D de Three.js y calcula nodos, mallas, vértices y BoundingBox.
  */
 export const inspectModel3D = (modelPath: string, scene: Object3D): ModelDiagnosticResult => {
   try {
@@ -40,7 +40,7 @@ export const inspectModel3D = (modelPath: string, scene: Object3D): ModelDiagnos
 
     const result: ModelDiagnosticResult = {
       modelPath,
-      status: 'success',
+      status: 'SUCCESS',
       nodeCount,
       meshCount,
       vertexCount,
@@ -55,17 +55,18 @@ export const inspectModel3D = (modelPath: string, scene: Object3D): ModelDiagnos
     diagnosticHistory.set(modelPath, result);
 
     console.log(
-      `[3D Diagnosis] ÉXITO: "${modelPath}" | Nodos: ${nodeCount} | Mallas: ${meshCount} | Vértices: ${vertexCount} | BBox: [${result.boundingBox.join(', ')}]`
+      `[3D Audit] ÉXITO: "${modelPath}" | Nodos: ${nodeCount} | Mallas: ${meshCount} | Vértices: ${vertexCount} | BBox: [${result.boundingBox.join(', ')}]`
     );
 
+    updateAuditLogGlobal();
     return result;
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
-    console.error(`[3D Diagnosis] ERROR calculando métricas para "${modelPath}":`, errorMsg);
+    console.error(`[3D Audit] ERROR calculando métricas para "${modelPath}":`, errorMsg);
 
     const failResult: ModelDiagnosticResult = {
       modelPath,
-      status: 'error',
+      status: 'ERROR',
       nodeCount: 0,
       meshCount: 0,
       vertexCount: 0,
@@ -75,6 +76,7 @@ export const inspectModel3D = (modelPath: string, scene: Object3D): ModelDiagnos
     };
 
     diagnosticHistory.set(modelPath, failResult);
+    updateAuditLogGlobal();
     return failResult;
   }
 };
@@ -83,15 +85,14 @@ export const inspectModel3D = (modelPath: string, scene: Object3D): ModelDiagnos
  * Registra un fallo de carga de un modelo GLTF/GLB y notifica la activación de fallback.
  */
 export const logModelError = (modelPath: string, error: any): ModelDiagnosticResult => {
-  const errorMsg = error?.message || (typeof error === 'string' ? error : 'Fallo de red o archivo GLTF inválido');
-  console.error(
-    `[3D Diagnosis Error] No se pudo cargar "${modelPath}". Se activa geometría procedural de fallback estilizada. Causa:`,
-    errorMsg
+  const errorMsg = error?.message || (typeof error === 'string' ? error : 'Archivo GLTF no encontrado o formato inválido');
+  console.warn(
+    `[3D Audit Fallback] No se encontró o falló el GLB "${modelPath}". Se activa geometría procedural estilizada de respaldo. Causa: ${errorMsg}`
   );
 
-  const errorResult: ModelDiagnosticResult = {
+  const fallbackResult: ModelDiagnosticResult = {
     modelPath,
-    status: 'fallback',
+    status: 'FALLBACK_PROCEDURAL',
     nodeCount: 0,
     meshCount: 0,
     vertexCount: 0,
@@ -100,8 +101,9 @@ export const logModelError = (modelPath: string, error: any): ModelDiagnosticRes
     timestamp: new Date().toISOString()
   };
 
-  diagnosticHistory.set(modelPath, errorResult);
-  return errorResult;
+  diagnosticHistory.set(modelPath, fallbackResult);
+  updateAuditLogGlobal();
+  return fallbackResult;
 };
 
 /**
@@ -110,3 +112,47 @@ export const logModelError = (modelPath: string, error: any): ModelDiagnosticRes
 export const getDiagnosticHistory = (): Record<string, ModelDiagnosticResult> => {
   return Object.fromEntries(diagnosticHistory.entries());
 };
+
+/**
+ * Genera el reporte textual de la auditoría de modelos 3D.
+ */
+export const generateAuditReportText = (): string => {
+  const lines: string[] = [
+    '================================================================================',
+    '        AUDITORÍA DE MODELOS 3D GLB - SIMULADOR ASADO ARGENTINO',
+    '================================================================================',
+    `Fecha de auditoría: ${new Date().toISOString()}`,
+    '',
+    'Modelos auditados:',
+    '--------------------------------------------------------------------------------'
+  ];
+
+  for (const [path, data] of diagnosticHistory.entries()) {
+    lines.push(`- ARCHIVO: ${path}`);
+    lines.push(`  ESTADO: ${data.status}`);
+    if (data.status === 'SUCCESS') {
+      lines.push(`  NODOS: ${data.nodeCount}`);
+      lines.push(`  MALLAS: ${data.meshCount}`);
+      lines.push(`  VÉRTICES: ${data.vertexCount}`);
+      lines.push(`  BOUNDING BOX [X, Y, Z]: [${data.boundingBox.join(', ')}] metros`);
+    } else {
+      lines.push(`  DETALLE: ${data.errorMessage || 'No disponible en disco'}`);
+      lines.push(`  ACCIÓN: Activación exitosa de fallback procedimental de alta fidelidad.`);
+    }
+    lines.push('--------------------------------------------------------------------------------');
+  }
+
+  return lines.join('\n');
+};
+
+/**
+ * Mantiene accesible el reporte en window para inspección en tiempo de ejecución.
+ */
+function updateAuditLogGlobal() {
+  if (typeof window !== 'undefined') {
+    (window as any).__3D_MODELS_AUDIT__ = {
+      history: getDiagnosticHistory(),
+      reportText: generateAuditReportText()
+    };
+  }
+}

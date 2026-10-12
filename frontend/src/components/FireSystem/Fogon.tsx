@@ -3,11 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { Group, Vector3, Color, InstancedMesh, Object3D } from 'three';
 import { Text } from '@react-three/drei';
 import { useAsadoStore } from '../../store/useAsadoStore';
-import { SafeGLTF } from '../Common/SafeModelLoader';
 
-const FOGON_MODEL_PATH = '/models/fogonero_criollo.glb';
-
-// Partículas de llamas y chispas procedimentales para el fuego del fogonero
+// Partículas de llamas y chispas procedimentales para el fuego del brasero
 export const FireFlamesParticles: React.FC<{ progress: number }> = ({ progress }) => {
   const meshRef = useRef<InstancedMesh>(null);
   const count = 30;
@@ -70,26 +67,75 @@ export const FireFlamesParticles: React.FC<{ progress: number }> = ({ progress }
   );
 };
 
-// Fogón procedural criollo estilizado de hierro y leños de quebracho
-const FogonProceduralFallback: React.FC<{
-  woodY: number;
-  woodScale: number;
-  woodColor: string;
-  fogonStage: string;
-  fogonProgress: number;
-  fogonEmbersCount: number;
-  carriedEmbersCount: number;
-}> = ({
-  woodY,
-  woodScale,
-  woodColor,
-  fogonStage,
-  fogonProgress,
-  fogonEmbersCount,
-  carriedEmbersCount
-}) => {
+// Brasero y fogón criollo procedimental de alta fidelidad
+export const Fogon: React.FC = () => {
+  const fogonGroupRef = useRef<Group>(null);
+  const fogonStage = useAsadoStore((state) => state.fogonStage);
+  const fogonProgress = useAsadoStore((state) => state.fogonProgress);
+  const fogonEmbersCount = useAsadoStore((state) => state.fogonEmbersCount);
+  const carriedEmbersCount = useAsadoStore((state) => state.carriedEmbersCount);
+  const selectedTool = useAsadoStore((state) => state.selectedTool);
+  const setSelectedTool = useAsadoStore((state) => state.setSelectedTool);
+  const colocarPapelYFosforo = useAsadoStore((state) => state.colocarPapelYFosforo);
+  const encenderFogon = useAsadoStore((state) => state.encenderFogon);
+  const avanzarFogon = useAsadoStore((state) => state.avanzarFogon);
+  const tomarBrasasDelFogon = useAsadoStore((state) => state.tomarBrasasDelFogon);
+  const triggerToolAction = useAsadoStore((state) => state.triggerToolAction);
+
+  // Progresión y combustión de los leños en tiempo real
+  useFrame((_, delta) => {
+    if (fogonStage === 'encendido') {
+      avanzarFogon(delta);
+    }
+  });
+
+  const handleFogonClick = (e: any) => {
+    e.stopPropagation();
+    triggerToolAction();
+
+    // 1. Si no hay fuego, colocar papel y fósforos
+    if (fogonStage === 'sin_fuego') {
+      colocarPapelYFosforo();
+      return;
+    }
+
+    // 2. Si ya tiene papel y fósforo, encender el fuego
+    if (fogonStage === 'con_papel') {
+      encenderFogon();
+      return;
+    }
+
+    // 3. Si las brasas están listas, cargar en la pala/atizador
+    if (fogonStage === 'brasas_listas') {
+      if (selectedTool !== 'pala' && selectedTool !== 'atizador') {
+        setSelectedTool('pala');
+      }
+      tomarBrasasDelFogon(8);
+    }
+  };
+
+  const woodScale = 1.0 - fogonProgress * 0.45;
+  const woodY = 0.25 - fogonProgress * 0.12;
+  const woodColor =
+    fogonStage === 'sin_fuego' || fogonStage === 'con_papel'
+      ? '#4a2e18'
+      : fogonStage === 'encendido'
+      ? '#22150d'
+      : '#120d0b';
+
   return (
-    <>
+    <group
+      ref={fogonGroupRef}
+      position={[-1.3, 0.05, 0]}
+      onClick={handleFogonClick}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = 'auto';
+      }}
+    >
       {/* 1. Canasto de hierro criollo / fogonero lateral (brasero) */}
       <group position={[0, 0.2, 0]}>
         <mesh position={[0, -0.15, 0]} castShadow>
@@ -141,11 +187,7 @@ const FogonProceduralFallback: React.FC<{
         <group position={[0, 0.12, 0]}>
           <mesh rotation={[0.2, 0.5, 0.1]} castShadow>
             <dodecahedronGeometry args={[0.1, 0]} />
-            <meshStandardMaterial
-              color="#e0ded6"
-              roughness={0.95}
-              wireframe={false}
-            />
+            <meshStandardMaterial color="#e0ded6" roughness={0.95} />
           </mesh>
           <mesh position={[0.08, 0.08, 0.05]} rotation={[0, 0, 0.6]}>
             <cylinderGeometry args={[0.005, 0.005, 0.09]} />
@@ -229,105 +271,6 @@ const FogonProceduralFallback: React.FC<{
           </Text>
         )}
       </group>
-    </>
-  );
-};
-
-export const Fogon: React.FC = () => {
-  const fogonGroupRef = useRef<Group>(null);
-  const fogonStage = useAsadoStore((state) => state.fogonStage);
-  const fogonProgress = useAsadoStore((state) => state.fogonProgress);
-  const fogonEmbersCount = useAsadoStore((state) => state.fogonEmbersCount);
-  const carriedEmbersCount = useAsadoStore((state) => state.carriedEmbersCount);
-  const selectedTool = useAsadoStore((state) => state.selectedTool);
-  const setSelectedTool = useAsadoStore((state) => state.setSelectedTool);
-  const colocarPapelYFosforo = useAsadoStore((state) => state.colocarPapelYFosforo);
-  const encenderFogon = useAsadoStore((state) => state.encenderFogon);
-  const avanzarFogon = useAsadoStore((state) => state.avanzarFogon);
-  const tomarBrasasDelFogon = useAsadoStore((state) => state.tomarBrasasDelFogon);
-  const triggerToolAction = useAsadoStore((state) => state.triggerToolAction);
-
-  // Progresión y combustión de los leños en tiempo real
-  useFrame((_, delta) => {
-    if (fogonStage === 'encendido') {
-      avanzarFogon(delta);
-    }
-  });
-
-  const handleFogonClick = (e: any) => {
-    e.stopPropagation();
-    triggerToolAction();
-
-    // 1. Si no hay fuego, colocar papel y fósforos
-    if (fogonStage === 'sin_fuego') {
-      colocarPapelYFosforo();
-      return;
-    }
-
-    // 2. Si ya tiene papel y fósforo, encender el fuego
-    if (fogonStage === 'con_papel') {
-      encenderFogon();
-      return;
-    }
-
-    // 3. Si las brasas están listas, cargar en la pala/atizador
-    if (fogonStage === 'brasas_listas') {
-      if (selectedTool !== 'pala' && selectedTool !== 'atizador') {
-        setSelectedTool('pala');
-      }
-      tomarBrasasDelFogon(8);
-    }
-  };
-
-  // Simulación del colapso de los leños: se achican y ennegrecen con la combustión
-  const woodScale = 1.0 - fogonProgress * 0.45;
-  const woodY = 0.25 - fogonProgress * 0.12;
-  const woodColor =
-    fogonStage === 'sin_fuego' || fogonStage === 'con_papel'
-      ? '#4a2e18'
-      : fogonStage === 'encendido'
-      ? '#22150d'
-      : '#120d0b';
-
-  return (
-    <group
-      ref={fogonGroupRef}
-      position={[-1.3, 0.05, 0]}
-      onClick={handleFogonClick}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        document.body.style.cursor = 'pointer';
-      }}
-      onPointerOut={() => {
-        document.body.style.cursor = 'auto';
-      }}
-    >
-      <SafeGLTF
-        modelPath={FOGON_MODEL_PATH}
-        fallback={
-          <FogonProceduralFallback
-            woodY={woodY}
-            woodScale={woodScale}
-            woodColor={woodColor}
-            fogonStage={fogonStage}
-            fogonProgress={fogonProgress}
-            fogonEmbersCount={fogonEmbersCount}
-            carriedEmbersCount={carriedEmbersCount}
-          />
-        }
-      >
-        {() => (
-          <FogonProceduralFallback
-            woodY={woodY}
-            woodScale={woodScale}
-            woodColor={woodColor}
-            fogonStage={fogonStage}
-            fogonProgress={fogonProgress}
-            fogonEmbersCount={fogonEmbersCount}
-            carriedEmbersCount={carriedEmbersCount}
-          />
-        )}
-      </SafeGLTF>
     </group>
   );
 };
