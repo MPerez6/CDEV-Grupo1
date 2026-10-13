@@ -42,6 +42,12 @@ Reglas de Operación:
 5. Fidelidad parrillera: Aplica las reglas del asado argentino (el hueso primero al fuego, la sal parrillera antes de tirar el corte, el control del calor mediante la distancia de brasas).
 6. No asumas que el código compila: Siempre espera la respuesta de verificación antes de dar por cerrada una tarea.
 7. Commits limpios: Usa mensajes descriptivos en español siguiendo convención Conventional Commits (feat, fix, refactor).
+
+REGLA ESTRICTA DE MODELOS 3D:
+- ESTÁ PROHIBIDO adivinar o inventar nombres de archivos .glb o .gltf (como 'fogonero_criollo.glb').
+- Antes de escribir cualquier useGLTF(), DEBES ejecutar obligatoriamente `inspect_3d_models()`.
+- SOLO puedes llamar a useGLTF con rutas que hayan aparecido explícitamente en el resultado de inspect_3d_models.
+- Si para un elemento (ej. fogón, pala, leña) no existe un modelo .glb en la lista, DEBES crearlo de forma procedural usando primitivas nativas de Three.js (mesh, cylinderGeometry, boxGeometry, etc.) SIN llamar a useGLTF.
 """
 
 def execute_objective(objective: str, max_iterations: int = 5, model_id: str = "gemini-3.8-flash"):

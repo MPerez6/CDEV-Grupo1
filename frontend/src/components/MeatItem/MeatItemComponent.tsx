@@ -51,19 +51,19 @@ const fragmentShader = `
       baseColor = mix(uTostadoColor, uBurntColor, t);
     }
 
-    // Marcas de los hierros de la parrilla que aparecen al avanzar la cocción
-    float barPattern = sin(vWorldPos.z * 52.0);
-    if (cl > 0.25 && barPattern > 0.7) {
-      float markFade = smoothstep(0.25, 1.0, cl) * 0.35;
+    // Marcas de los hierros de la parrilla (espaciado ~0.065m = ~15 radianes/m)
+    float barPattern = sin(vWorldPos.x * 96.0);
+    if (cl > 0.2 && barPattern > 0.72) {
+      float markFade = smoothstep(0.2, 0.9, cl) * 0.45;
       baseColor = mix(baseColor, uBurntColor, markFade);
     }
 
     // Iluminación difusa con rebote cálido del fuego inferior
     vec3 sunLightDir = normalize(vec3(0.8, 2.2, 0.9));
-    float diff = max(dot(vNormal, sunLightDir), 0.32);
+    float diff = max(dot(vNormal, sunLightDir), 0.35);
 
-    float underBounce = max(-vNormal.y, 0.0) * 0.18;
-    vec3 fireWarmth = vec3(0.25, 0.08, 0.01) * underBounce;
+    float underBounce = max(-vNormal.y, 0.0) * 0.22;
+    vec3 fireWarmth = vec3(0.28, 0.09, 0.01) * underBounce;
 
     vec3 finalRgb = (baseColor * diff) + fireWarmth;
     gl_FragColor = vec4(finalRgb, 1.0);
@@ -89,20 +89,35 @@ const MeatMesh: React.FC<MeatMeshProps> = ({ scene, material }) => {
     });
   }, [clone, material]);
 
-  // Escala aumentada (~0.48): tamaño visible, suculento y contundente de asado de tira
+  // Escala calibrada en rango {0.4} a {0.5} con <Center>
   return (
-    <Center scale={0.48}>
+    <Center scale={0.45}>
       <primitive object={clone} />
     </Center>
   );
 };
 
-// Fallback estilizado para el corte si el archivo .glb falla
+// Fallback estilizado de alta fidelidad: tira de asado con carne, capa de grasa y hueso
 const MeatPieceFallback: React.FC<{ material: ShaderMaterial }> = ({ material }) => (
-  <Center scale={0.48}>
-    <mesh castShadow receiveShadow material={material}>
-      <boxGeometry args={[0.78, 0.18, 0.46]} />
-    </mesh>
+  <Center scale={0.45}>
+    <group>
+      {/* Carne roja vacuna con reacción de Maillard */}
+      <mesh castShadow receiveShadow material={material}>
+        <boxGeometry args={[0.5, 0.1, 0.24]} />
+      </mesh>
+      {/* Ribete de grasa blanca/dorada */}
+      <mesh position={[0, 0, 0.125]} castShadow>
+        <boxGeometry args={[0.49, 0.08, 0.018]} />
+        <meshStandardMaterial color="#ebe0cb" roughness={0.7} metalness={0.05} />
+      </mesh>
+      {/* Huesos de costilla de tira */}
+      {[-0.15, 0, 0.15].map((x, i) => (
+        <mesh key={`bone-${i}`} position={[x, -0.01, -0.122]} castShadow>
+          <boxGeometry args={[0.06, 0.07, 0.02]} />
+          <meshStandardMaterial color="#e0d6c5" roughness={0.5} />
+        </mesh>
+      ))}
+    </group>
   </Center>
 );
 
@@ -138,26 +153,25 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     });
   }, []);
 
-  // Volteo estable y controlado: resetea velocidades lineales y angulares a cero absoluto
+  // Volteo parrillero estable: resetea velocidades lineales y angulares a cero
   useEffect(() => {
     if (prevFlippedRef.current !== meat.flipped && rigidBodyRef.current && !isBeingPlaced) {
       prevFlippedRef.current = meat.flipped;
 
-      // 1. Reseteo riguroso de velocidades para que jamás salga despedido al infinito
       rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
       rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
-      // 2. Rotación controlada de 180° sobre el eje longitudinal (Z)
+      // Rotación de 180° sobre el eje longitudinal
       const curRot = rigidBodyRef.current.rotation();
       const currentQ = new Quaternion(curRot.x, curRot.y, curRot.z, curRot.w);
       const flipQ = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI);
       currentQ.multiply(flipQ);
       rigidBodyRef.current.setRotation(currentQ, true);
 
-      // 3. Pequeño micro-lift seguro para asentarse de nuevo sobre los fierros
+      // Leve elevación para asentarse del otro lado
       const curPos = rigidBodyRef.current.translation();
       const safeX = !isNaN(curPos.x) ? curPos.x : meat.position[0];
-      const safeY = !isNaN(curPos.y) ? Math.max(curPos.y, 0.40) + 0.02 : 0.44;
+      const safeY = !isNaN(curPos.y) ? Math.max(curPos.y, 0.38) + 0.03 : 0.42;
       const safeZ = !isNaN(curPos.z) ? curPos.z : meat.position[2];
       rigidBodyRef.current.setTranslation({ x: safeX, y: safeY, z: safeZ }, true);
     }
@@ -182,9 +196,9 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
         currentY = translation.y;
         currentZ = translation.z;
 
-        // Red de seguridad criolla: si cae accidentalmente bajo la parrilla, reponerlo en los fierros
-        if (currentY < 0.22) {
-          rigidBodyRef.current.setTranslation({ x: currentX, y: 0.44, z: currentZ }, true);
+        // Red de seguridad: si cae accidentalmente por debajo de los hierros, reponerlo en la parrilla
+        if (currentY < 0.28) {
+          rigidBodyRef.current.setTranslation({ x: currentX, y: 0.42, z: currentZ }, true);
           rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
           rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
         }
@@ -194,7 +208,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     const heat = getHeatAtPosition(currentX, currentY, currentZ);
 
     if (heat >= 0.05 && meat.cookLevel < 2.0) {
-      const cookSpeed = 0.0006;
+      const cookSpeed = 0.00065;
       const cookDelta = heat * cookSpeed * delta;
       updateCookLevel(meat.id, cookDelta);
     }
@@ -206,18 +220,17 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
-
     if (isBeingPlaced) return;
 
     triggerToolAction();
 
-    // Click secundario o Shift+clic: activar modo de colocación / mover
+    // Click derecho o shift: reubicar corte
     if (e.button === 2 || e.shiftKey) {
       startPlacingMeat(meat.id);
       return;
     }
 
-    // Click normal con tenedor: pinchar y voltear la carne
+    // Pinchar y voltear con tenedor
     if (selectedTool === 'tenedor') {
       flipMeat(meat.id);
     } else {
@@ -232,12 +245,12 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       colliders={false}
       friction={0.9}
       restitution={0.02}
-      mass={1.5}
+      mass={1.2}
       position={meat.position}
       canSleep={false}
     >
-      {/* Colisionador cuboid proporcional generoso: 0.72 x 0.16 x 0.48 m. Imposible colarse entre varillas */}
-      <CuboidCollider args={[0.36, 0.08, 0.24]} position={[0, 0.02, 0]} />
+      {/* Colisionador proporcional para que el corte no atraviese las barras */}
+      <CuboidCollider args={[0.24, 0.05, 0.13]} position={[0, 0.01, 0]} />
 
       <group
         onPointerDown={handlePointerDown}

@@ -2,112 +2,110 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, Vector3, Quaternion, Euler, MathUtils } from 'three';
 import { useAsadoStore, AsadoTool } from '../../store/useAsadoStore';
-import { SafeGLTF } from '../Common/SafeModelLoader';
 
-// Rutas de modelos GLB para forzar su auditoría y carga
-const TENEDOR_MODEL_PATH = '/models/tenedor.glb';
-const PALA_MODEL_PATH = '/models/pala.glb';
-const ATIZADOR_MODEL_PATH = '/models/atizador.glb';
-const CEPILLO_MODEL_PATH = '/models/cepillo.glb';
-
-// Modelo procedimental de tenedor parrillero criollo de dos puntas
+// Modelo procedural de tenedor parrillero criollo de dos puntas de hierro forjado
 export const TenedorModel: React.FC = () => (
-  <group rotation={[0.25, 0.05, -0.05]}>
-    {/* Mango de madera torneada */}
-    <mesh position={[0, -0.45, 0]} castShadow>
-      <cylinderGeometry args={[0.022, 0.026, 0.4, 16]} />
-      <meshStandardMaterial color="#5a331a" roughness={0.7} metalness={0.1} />
+  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+    {/* Mango de madera de quebracho lustrada */}
+    <mesh position={[0, -0.32, 0]} castShadow>
+      <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
+      <meshStandardMaterial color="#4d2c18" roughness={0.65} metalness={0.1} />
     </mesh>
 
-    {/* Virola de ajuste */}
-    <mesh position={[0, -0.23, 0]} castShadow>
-      <cylinderGeometry args={[0.024, 0.024, 0.04, 16]} />
-      <meshStandardMaterial color="#888888" roughness={0.3} metalness={0.8} />
+    {/* Virola de latón / bronce parrillero */}
+    <mesh position={[0, -0.13, 0]} castShadow>
+      <cylinderGeometry args={[0.022, 0.022, 0.035, 16]} />
+      <meshStandardMaterial color="#b38f4d" roughness={0.3} metalness={0.8} />
     </mesh>
 
     {/* Varilla larga de hierro */}
-    <mesh position={[0, 0.22, 0]} castShadow>
-      <cylinderGeometry args={[0.009, 0.009, 0.86, 12]} />
+    <mesh position={[0, 0.24, 0]} castShadow>
+      <cylinderGeometry args={[0.008, 0.008, 0.72, 12]} />
       <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
     </mesh>
 
-    {/* Base bifurcada del tenedor */}
-    <mesh position={[0, 0.67, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.009, 0.009, 0.11, 12]} />
+    {/* Base bifurcada horizontal del tenedor */}
+    <mesh position={[0, 0.6, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+      <cylinderGeometry args={[0.008, 0.008, 0.1, 12]} />
       <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
     </mesh>
 
     {/* Púa izquierda afilada */}
-    <mesh position={[-0.045, 0.82, 0]} castShadow>
-      <coneGeometry args={[0.008, 0.3, 8]} />
-      <meshStandardMaterial color="#3a3a3a" roughness={0.3} metalness={0.9} />
+    <mesh position={[-0.04, 0.72, 0]} castShadow>
+      <coneGeometry args={[0.007, 0.24, 8]} />
+      <meshStandardMaterial color="#353535" roughness={0.3} metalness={0.9} />
     </mesh>
 
     {/* Púa derecha afilada */}
-    <mesh position={[0.045, 0.82, 0]} castShadow>
-      <coneGeometry args={[0.008, 0.3, 8]} />
-      <meshStandardMaterial color="#3a3a3a" roughness={0.3} metalness={0.9} />
+    <mesh position={[0.04, 0.72, 0]} castShadow>
+      <coneGeometry args={[0.007, 0.24, 8]} />
+      <meshStandardMaterial color="#353535" roughness={0.3} metalness={0.9} />
     </mesh>
   </group>
 );
 
-// Modelo procedimental de pala parrillera con brasas incandescentes activas
+// Modelo procedural de pala parrillera con chapa para brasas
 export const PalaModel: React.FC<{ carriedEmbers?: number }> = ({ carriedEmbers = 0 }) => (
-  <group rotation={[0.25, 0.05, -0.05]}>
-    {/* Mango de madera torneada */}
-    <mesh position={[0, -0.45, 0]} castShadow>
-      <cylinderGeometry args={[0.022, 0.026, 0.4, 16]} />
-      <meshStandardMaterial color="#5a331a" roughness={0.7} metalness={0.1} />
+  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+    {/* Mango de madera */}
+    <mesh position={[0, -0.32, 0]} castShadow>
+      <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
+      <meshStandardMaterial color="#4d2c18" roughness={0.65} metalness={0.1} />
     </mesh>
 
     {/* Virola */}
-    <mesh position={[0, -0.23, 0]} castShadow>
-      <cylinderGeometry args={[0.024, 0.024, 0.04, 16]} />
+    <mesh position={[0, -0.13, 0]} castShadow>
+      <cylinderGeometry args={[0.022, 0.022, 0.035, 16]} />
       <meshStandardMaterial color="#888888" roughness={0.3} metalness={0.8} />
     </mesh>
 
-    {/* Varilla de hierro */}
-    <mesh position={[0, 0.25, 0]} castShadow>
-      <cylinderGeometry args={[0.01, 0.01, 0.92, 12]} />
+    {/* Varilla larga de hierro */}
+    <mesh position={[0, 0.26, 0]} castShadow>
+      <cylinderGeometry args={[0.009, 0.009, 0.76, 12]} />
       <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
     </mesh>
 
-    {/* Chapa de la pala */}
-    <group position={[0, 0.8, 0.02]} rotation={[-0.2, 0, 0]}>
+    {/* Chapa contenedora de la pala */}
+    <group position={[0, 0.7, 0.02]} rotation={[-0.22, 0, 0]}>
+      {/* Fondo de la pala */}
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[0.22, 0.28, 0.008]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.5} metalness={0.8} />
+        <boxGeometry args={[0.2, 0.24, 0.008]} />
+        <meshStandardMaterial color="#1c1c1c" roughness={0.5} metalness={0.8} />
       </mesh>
-      <mesh position={[0, -0.14, 0.025]} castShadow>
-        <boxGeometry args={[0.22, 0.008, 0.05]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.5} metalness={0.8} />
+      {/* Reborde trasero */}
+      <mesh position={[0, -0.12, 0.02]} castShadow>
+        <boxGeometry args={[0.2, 0.008, 0.04]} />
+        <meshStandardMaterial color="#1c1c1c" roughness={0.5} metalness={0.8} />
       </mesh>
-      <mesh position={[-0.11, 0, 0.02]} castShadow>
-        <boxGeometry args={[0.008, 0.28, 0.04]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.5} metalness={0.8} />
+      {/* Reborde izquierdo */}
+      <mesh position={[-0.1, 0, 0.018]} castShadow>
+        <boxGeometry args={[0.008, 0.24, 0.035]} />
+        <meshStandardMaterial color="#1c1c1c" roughness={0.5} metalness={0.8} />
       </mesh>
-      <mesh position={[0.11, 0, 0.02]} castShadow>
-        <boxGeometry args={[0.008, 0.28, 0.04]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.5} metalness={0.8} />
+      {/* Reborde derecho */}
+      <mesh position={[0.1, 0, 0.018]} castShadow>
+        <boxGeometry args={[0.008, 0.24, 0.035]} />
+        <meshStandardMaterial color="#1c1c1c" roughness={0.5} metalness={0.8} />
       </mesh>
 
+      {/* Brasas incandescentes visibles sobre la pala si se cargaron */}
       {carriedEmbers > 0 && (
-        <group position={[0, 0, 0.03]}>
-          <pointLight color="#ff4400" intensity={1.5} distance={1.2} />
+        <group position={[0, 0, 0.025]}>
+          <pointLight color="#ff4400" intensity={1.4} distance={1.0} />
           {Array.from({ length: Math.min(carriedEmbers, 5) }).map((_, i) => (
             <mesh
               key={i}
               position={[
-                (i % 3 - 1) * 0.05 + (i * 0.01),
-                ((i > 2 ? 0.04 : -0.04)),
+                (i % 3 - 1) * 0.045 + (i * 0.008),
+                (i > 2 ? 0.035 : -0.035),
                 0.015
               ]}
             >
-              <dodecahedronGeometry args={[0.022, 0]} />
+              <dodecahedronGeometry args={[0.018, 0]} />
               <meshStandardMaterial
                 color="#ff2200"
                 emissive="#ff5500"
-                emissiveIntensity={1.2}
+                emissiveIntensity={1.3}
                 roughness={0.8}
               />
             </mesh>
@@ -118,49 +116,65 @@ export const PalaModel: React.FC<{ carriedEmbers?: number }> = ({ carriedEmbers 
   </group>
 );
 
-// Modelo procedimental de atizador criollo en 'L'
+// Modelo procedural de atizador criollo en 'L'
 export const AtizadorModel: React.FC = () => (
-  <group rotation={[0.25, 0.05, -0.05]}>
-    <mesh position={[0, -0.45, 0]} castShadow>
-      <cylinderGeometry args={[0.022, 0.026, 0.4, 16]} />
-      <meshStandardMaterial color="#5a331a" roughness={0.7} metalness={0.1} />
+  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+    {/* Mango de madera */}
+    <mesh position={[0, -0.32, 0]} castShadow>
+      <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
+      <meshStandardMaterial color="#4d2c18" roughness={0.65} metalness={0.1} />
     </mesh>
-    <mesh position={[0, -0.67, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-      <torusGeometry args={[0.022, 0.005, 8, 20]} />
+
+    {/* Argolla trasera para colgar */}
+    <mesh position={[0, -0.5, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+      <torusGeometry args={[0.018, 0.004, 8, 16]} />
       <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
     </mesh>
-    <mesh position={[0, -0.23, 0]} castShadow>
-      <cylinderGeometry args={[0.024, 0.024, 0.04, 16]} />
+
+    {/* Virola */}
+    <mesh position={[0, -0.13, 0]} castShadow>
+      <cylinderGeometry args={[0.022, 0.022, 0.035, 16]} />
       <meshStandardMaterial color="#888888" roughness={0.3} metalness={0.8} />
     </mesh>
+
+    {/* Varilla larga de hierro */}
     <mesh position={[0, 0.28, 0]} castShadow>
-      <cylinderGeometry args={[0.01, 0.01, 0.98, 12]} />
+      <cylinderGeometry args={[0.009, 0.009, 0.82, 12]} />
       <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
     </mesh>
-    <mesh position={[0.065, 0.77, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.01, 0.01, 0.14, 12]} />
+
+    {/* Gancho en 'L' para arrastrar y revolver brasas */}
+    <mesh position={[0.055, 0.69, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+      <cylinderGeometry args={[0.009, 0.009, 0.12, 12]} />
       <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
     </mesh>
   </group>
 );
 
-// Modelo procedimental de cepillo parrillero de alambre
+// Modelo procedural de cepillo parrillero de alambre para limpiar hierros
 export const CepilloModel: React.FC = () => (
-  <group rotation={[0.25, 0.05, -0.05]}>
-    <mesh position={[0, -0.35, 0]} castShadow>
-      <cylinderGeometry args={[0.018, 0.022, 0.45, 12]} />
-      <meshStandardMaterial color="#653b1e" roughness={0.8} metalness={0.05} />
+  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+    {/* Mango largo de madera */}
+    <mesh position={[0, -0.25, 0]} castShadow>
+      <cylinderGeometry args={[0.016, 0.02, 0.4, 12]} />
+      <meshStandardMaterial color="#553018" roughness={0.75} metalness={0.08} />
     </mesh>
-    <mesh position={[0, 0.02, 0]} castShadow>
-      <boxGeometry args={[0.1, 0.28, 0.05]} />
-      <meshStandardMaterial color="#4a2812" roughness={0.7} metalness={0.1} />
+
+    {/* Bloque de madera del cepillo */}
+    <mesh position={[0, 0.06, 0]} castShadow>
+      <boxGeometry args={[0.08, 0.22, 0.045]} />
+      <meshStandardMaterial color="#3e2210" roughness={0.7} metalness={0.1} />
     </mesh>
-    <mesh position={[0, 0.02, 0.04]} castShadow>
-      <boxGeometry args={[0.08, 0.25, 0.035]} />
-      <meshStandardMaterial color="#b89758" roughness={0.5} metalness={0.8} />
+
+    {/* Cerdas de alambre de bronce/acero */}
+    <mesh position={[0, 0.06, 0.035]} castShadow>
+      <boxGeometry args={[0.07, 0.2, 0.028]} />
+      <meshStandardMaterial color="#c29c50" roughness={0.5} metalness={0.8} />
     </mesh>
-    <mesh position={[0, 0.17, 0.015]} castShadow>
-      <boxGeometry args={[0.09, 0.025, 0.008]} />
+
+    {/* Raspador metálico superior en el extremo */}
+    <mesh position={[0, 0.18, 0.012]} castShadow>
+      <boxGeometry args={[0.075, 0.02, 0.006]} />
       <meshStandardMaterial color="#777777" roughness={0.3} metalness={0.9} />
     </mesh>
   </group>
@@ -173,18 +187,13 @@ export const PlayerTools: React.FC = () => {
   const toolActionTrigger = useAsadoStore((state) => state.toolActionTrigger);
 
   const toolGroupRef = useRef<Group>(null);
-  const animationRef = useRef<Group>(null);
 
-  // Escucha global de eventos de teclado (C, P, A, T, 1, 2, 3, 4, Escape)
+  // Escucha de atajos de teclado para cambiar herramientas ágilmente
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignorar si el usuario está en un input o editable
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
-        return;
-      }
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
       const key = e.key.toLowerCase();
-
       switch (key) {
         case 'c':
         case '1':
@@ -216,12 +225,12 @@ export const PlayerTools: React.FC = () => {
     };
   }, [setSelectedTool]);
 
-  const currentPos = useRef(new Vector3(0.38, -0.32, -0.75));
+  const currentPos = useRef(new Vector3(0.28, -0.22, -0.55));
   const targetPos = useRef(new Vector3());
   const targetRot = useRef(new Quaternion());
   const eulerAux = useRef(new Euler());
 
-  const actionProgress = useRef(0);
+  const actionProgress = useRef(1.0);
   const isActing = useRef(false);
   const lastTriggerRef = useRef(toolActionTrigger);
 
@@ -233,6 +242,7 @@ export const PlayerTools: React.FC = () => {
     }
   }, [toolActionTrigger]);
 
+  // Animación en useFrame: Oscilación suave rústica (sway) + respuesta activa a clics
   useFrame(({ camera, pointer, clock }, delta) => {
     if (!toolGroupRef.current) return;
 
@@ -243,9 +253,11 @@ export const PlayerTools: React.FC = () => {
     toolGroupRef.current.visible = true;
 
     const t = clock.elapsedTime;
-    const swayX = Math.sin(t * 1.8) * 0.012 + pointer.x * 0.04;
-    const swayY = Math.cos(t * 2.2) * 0.014 + pointer.y * 0.03;
-    const swayZ = Math.sin(t * 1.5) * 0.008;
+
+    // Balanceo natural de respiración y movimiento del cursor
+    const swayX = Math.sin(t * 1.8) * 0.008 + pointer.x * 0.03;
+    const swayY = Math.cos(t * 2.2) * 0.01 - pointer.y * 0.025;
+    const swayZ = Math.sin(t * 1.4) * 0.006;
 
     let actionOffsetX = 0;
     let actionOffsetY = 0;
@@ -254,8 +266,9 @@ export const PlayerTools: React.FC = () => {
     let actionRotY = 0;
     let actionRotZ = 0;
 
+    // Animación de acción viva cuando el asador interactúa
     if (isActing.current) {
-      actionProgress.current += delta * 4.2;
+      actionProgress.current += delta * 4.5;
       if (actionProgress.current >= 1.0) {
         actionProgress.current = 1.0;
         isActing.current = false;
@@ -265,26 +278,30 @@ export const PlayerTools: React.FC = () => {
 
       switch (selectedTool) {
         case 'tenedor':
-          actionOffsetZ = -0.22 * pulse;
-          actionOffsetY = -0.06 * pulse;
-          actionRotX = -0.35 * pulse;
-          actionRotZ = 0.5 * pulse;
+          // Estocada hacia adelante, descenso y giro para voltear
+          actionOffsetZ = -0.16 * pulse;
+          actionOffsetY = -0.05 * pulse;
+          actionRotX = -0.3 * pulse;
+          actionRotZ = 0.45 * pulse;
           break;
         case 'pala':
-          actionOffsetY = -0.12 * pulse;
-          actionOffsetZ = -0.16 * pulse;
-          actionRotX = 0.3 * pulse;
+          // Inclinación hacia abajo para juntar brasas y levantada
+          actionOffsetY = -0.1 * pulse;
+          actionOffsetZ = -0.12 * pulse;
+          actionRotX = 0.35 * pulse;
           break;
         case 'atizador':
-          actionOffsetX = -0.14 * pulse;
-          actionOffsetY = -0.05 * pulse;
-          actionRotY = 0.45 * pulse;
+          // Barrido lateral criollo para mover el carbón
+          actionOffsetX = -0.12 * pulse;
+          actionOffsetY = -0.04 * pulse;
+          actionRotY = 0.4 * pulse;
           break;
         case 'cepillo': {
+          // Vaivén rápido de raspado sobre los hierros
           const scrubCycle = Math.sin(actionProgress.current * Math.PI * 4);
-          actionOffsetZ = -0.15 * pulse + scrubCycle * 0.04;
-          actionOffsetY = -0.04 * pulse;
-          actionRotX = 0.25 * pulse;
+          actionOffsetZ = -0.12 * pulse + scrubCycle * 0.03;
+          actionOffsetY = -0.03 * pulse;
+          actionRotX = 0.28 * pulse;
           break;
         }
         default:
@@ -292,21 +309,22 @@ export const PlayerTools: React.FC = () => {
       }
     }
 
-    const baseCameraOffset = new Vector3(
-      0.36 + swayX + actionOffsetX,
-      -0.28 + swayY + actionOffsetY,
-      -0.65 + swayZ + actionOffsetZ
+    // Posicionamiento en el espacio relativo a la cámara
+    const baseOffset = new Vector3(
+      0.28 + swayX + actionOffsetX,
+      -0.22 + swayY + actionOffsetY,
+      -0.55 + swayZ + actionOffsetZ
     );
 
-    targetPos.current.copy(baseCameraOffset);
+    targetPos.current.copy(baseOffset);
     targetPos.current.applyMatrix4(camera.matrixWorld);
 
     currentPos.current.lerp(targetPos.current, MathUtils.clamp(delta * 14, 0.1, 0.9));
     toolGroupRef.current.position.copy(currentPos.current);
 
     eulerAux.current.set(
-      camera.rotation.x + actionRotX + Math.sin(t * 1.6) * 0.02,
-      camera.rotation.y + actionRotY + Math.cos(t * 1.4) * 0.02,
+      camera.rotation.x + actionRotX + Math.sin(t * 1.5) * 0.015,
+      camera.rotation.y + actionRotY + Math.cos(t * 1.3) * 0.015,
       camera.rotation.z + actionRotZ,
       camera.rotation.order
     );
@@ -317,40 +335,21 @@ export const PlayerTools: React.FC = () => {
   const renderActiveTool = (tool: AsadoTool) => {
     switch (tool) {
       case 'tenedor':
-        return (
-          <SafeGLTF modelPath={TENEDOR_MODEL_PATH} fallback={<TenedorModel />}>
-            {({ scene }) => <primitive object={scene.clone()} />}
-          </SafeGLTF>
-        );
+        return <TenedorModel />;
       case 'pala':
-        return (
-          <SafeGLTF modelPath={PALA_MODEL_PATH} fallback={<PalaModel carriedEmbers={carriedEmbersCount} />}>
-            {({ scene }) => <primitive object={scene.clone()} />}
-          </SafeGLTF>
-        );
+        return <PalaModel carriedEmbers={carriedEmbersCount} />;
       case 'atizador':
-        return (
-          <SafeGLTF modelPath={ATIZADOR_MODEL_PATH} fallback={<AtizadorModel />}>
-            {({ scene }) => <primitive object={scene.clone()} />}
-          </SafeGLTF>
-        );
+        return <AtizadorModel />;
       case 'cepillo':
-        return (
-          <SafeGLTF modelPath={CEPILLO_MODEL_PATH} fallback={<CepilloModel />}>
-            {({ scene }) => <primitive object={scene.clone()} />}
-          </SafeGLTF>
-        );
-      case 'ninguna':
+        return <CepilloModel />;
       default:
         return null;
     }
   };
 
   return (
-    <group ref={toolGroupRef} scale={[0.55, 0.55, 0.55]}>
-      <group ref={animationRef}>
-        {renderActiveTool(selectedTool)}
-      </group>
+    <group ref={toolGroupRef}>
+      {renderActiveTool(selectedTool)}
     </group>
   );
 };
