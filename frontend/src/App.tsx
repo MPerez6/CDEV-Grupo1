@@ -35,7 +35,7 @@ const App: React.FC = () => {
       {/* Canvas 3D principal */}
       <Canvas
         shadows
-        camera={{ position: [0, 1.8, 2.8], fov: 50 }}
+        camera={{ position: [0, 1.15, 1.45], fov: 46 }}
       >
         <Suspense fallback={null}>
           {/* Ambientación pampeana y físicas Rapier */}
@@ -58,13 +58,13 @@ const App: React.FC = () => {
         <OrbitControls
           makeDefault
           enabled={!placingMeatId}
-          target={[0, 0.42, 0]}
+          target={[0, 0.38, 0]}
           minAzimuthAngle={-Math.PI / 3}
           maxAzimuthAngle={Math.PI / 3}
           minPolarAngle={Math.PI / 6}
           maxPolarAngle={Math.PI / 2.15}
-          minDistance={1.2}
-          maxDistance={4.2}
+          minDistance={0.8}
+          maxDistance={3.2}
           enablePan={false}
         />
       </Canvas>

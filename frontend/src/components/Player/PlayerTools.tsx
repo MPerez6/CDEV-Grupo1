@@ -3,9 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import { Group, Vector3, Quaternion, Euler, MathUtils } from 'three';
 import { useAsadoStore, AsadoTool } from '../../store/useAsadoStore';
 
-// Modelo procedural de tenedor parrillero criollo de dos puntas de hierro forjado
+// Modelo procedural de tenedor parrillero criollo orientado naturalmente hacia la parrilla
 export const TenedorModel: React.FC = () => (
-  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+  <group rotation={[-1.15, -0.22, 0.3]} scale={[0.32, 0.32, 0.32]}>
     {/* Mango de madera de quebracho lustrada */}
     <mesh position={[0, -0.32, 0]} castShadow>
       <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
@@ -46,7 +46,7 @@ export const TenedorModel: React.FC = () => (
 
 // Modelo procedural de pala parrillera con chapa para brasas
 export const PalaModel: React.FC<{ carriedEmbers?: number }> = ({ carriedEmbers = 0 }) => (
-  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+  <group rotation={[-1.15, -0.22, 0.3]} scale={[0.32, 0.32, 0.32]}>
     {/* Mango de madera */}
     <mesh position={[0, -0.32, 0]} castShadow>
       <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
@@ -88,7 +88,7 @@ export const PalaModel: React.FC<{ carriedEmbers?: number }> = ({ carriedEmbers 
         <meshStandardMaterial color="#1c1c1c" roughness={0.5} metalness={0.8} />
       </mesh>
 
-      {/* Brasas incandescentes visibles sobre la pala si se cargaron */}
+      {/* Brasas incandescentes visibles sobre la pala */}
       {carriedEmbers > 0 && (
         <group position={[0, 0, 0.025]}>
           <pointLight color="#ff4400" intensity={1.4} distance={1.0} />
@@ -118,7 +118,7 @@ export const PalaModel: React.FC<{ carriedEmbers?: number }> = ({ carriedEmbers 
 
 // Modelo procedural de atizador criollo en 'L'
 export const AtizadorModel: React.FC = () => (
-  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+  <group rotation={[-1.15, -0.22, 0.3]} scale={[0.32, 0.32, 0.32]}>
     {/* Mango de madera */}
     <mesh position={[0, -0.32, 0]} castShadow>
       <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
@@ -153,7 +153,7 @@ export const AtizadorModel: React.FC = () => (
 
 // Modelo procedural de cepillo parrillero de alambre para limpiar hierros
 export const CepilloModel: React.FC = () => (
-  <group rotation={[0.4, 0.08, -0.1]} scale={[0.5, 0.5, 0.5]}>
+  <group rotation={[-1.15, -0.22, 0.3]} scale={[0.32, 0.32, 0.32]}>
     {/* Mango largo de madera */}
     <mesh position={[0, -0.25, 0]} castShadow>
       <cylinderGeometry args={[0.016, 0.02, 0.4, 12]} />
@@ -225,7 +225,7 @@ export const PlayerTools: React.FC = () => {
     };
   }, [setSelectedTool]);
 
-  const currentPos = useRef(new Vector3(0.28, -0.22, -0.55));
+  const currentPos = useRef(new Vector3(0.24, -0.18, -0.42));
   const targetPos = useRef(new Vector3());
   const targetRot = useRef(new Quaternion());
   const eulerAux = useRef(new Euler());
@@ -242,7 +242,7 @@ export const PlayerTools: React.FC = () => {
     }
   }, [toolActionTrigger]);
 
-  // Animación en useFrame: Oscilación suave rústica (sway) + respuesta activa a clics
+  // Animación viva en useFrame: Oscilación suave rústica (sway) + respuesta táctil a clics
   useFrame(({ camera, pointer, clock }, delta) => {
     if (!toolGroupRef.current) return;
 
@@ -255,9 +255,9 @@ export const PlayerTools: React.FC = () => {
     const t = clock.elapsedTime;
 
     // Balanceo natural de respiración y movimiento del cursor
-    const swayX = Math.sin(t * 1.8) * 0.008 + pointer.x * 0.03;
-    const swayY = Math.cos(t * 2.2) * 0.01 - pointer.y * 0.025;
-    const swayZ = Math.sin(t * 1.4) * 0.006;
+    const swayX = Math.sin(t * 1.8) * 0.007 + pointer.x * 0.025;
+    const swayY = Math.cos(t * 2.2) * 0.008 - pointer.y * 0.02;
+    const swayZ = Math.sin(t * 1.4) * 0.005;
 
     let actionOffsetX = 0;
     let actionOffsetY = 0;
@@ -268,7 +268,7 @@ export const PlayerTools: React.FC = () => {
 
     // Animación de acción viva cuando el asador interactúa
     if (isActing.current) {
-      actionProgress.current += delta * 4.5;
+      actionProgress.current += delta * 4.8;
       if (actionProgress.current >= 1.0) {
         actionProgress.current = 1.0;
         isActing.current = false;
@@ -278,30 +278,30 @@ export const PlayerTools: React.FC = () => {
 
       switch (selectedTool) {
         case 'tenedor':
-          // Estocada hacia adelante, descenso y giro para voltear
-          actionOffsetZ = -0.16 * pulse;
-          actionOffsetY = -0.05 * pulse;
-          actionRotX = -0.3 * pulse;
-          actionRotZ = 0.45 * pulse;
+          // Estocada hacia adelante y giro para pinchar/voltear
+          actionOffsetZ = -0.14 * pulse;
+          actionOffsetY = -0.04 * pulse;
+          actionRotX = -0.25 * pulse;
+          actionRotZ = 0.4 * pulse;
           break;
         case 'pala':
           // Inclinación hacia abajo para juntar brasas y levantada
-          actionOffsetY = -0.1 * pulse;
-          actionOffsetZ = -0.12 * pulse;
-          actionRotX = 0.35 * pulse;
+          actionOffsetY = -0.08 * pulse;
+          actionOffsetZ = -0.1 * pulse;
+          actionRotX = 0.3 * pulse;
           break;
         case 'atizador':
           // Barrido lateral criollo para mover el carbón
-          actionOffsetX = -0.12 * pulse;
-          actionOffsetY = -0.04 * pulse;
-          actionRotY = 0.4 * pulse;
+          actionOffsetX = -0.1 * pulse;
+          actionOffsetY = -0.03 * pulse;
+          actionRotY = 0.35 * pulse;
           break;
         case 'cepillo': {
           // Vaivén rápido de raspado sobre los hierros
           const scrubCycle = Math.sin(actionProgress.current * Math.PI * 4);
-          actionOffsetZ = -0.12 * pulse + scrubCycle * 0.03;
-          actionOffsetY = -0.03 * pulse;
-          actionRotX = 0.28 * pulse;
+          actionOffsetZ = -0.1 * pulse + scrubCycle * 0.025;
+          actionOffsetY = -0.025 * pulse;
+          actionRotX = 0.22 * pulse;
           break;
         }
         default:
@@ -309,11 +309,11 @@ export const PlayerTools: React.FC = () => {
       }
     }
 
-    // Posicionamiento en el espacio relativo a la cámara
+    // Posicionamiento en el espacio relativo a la cámara (esquina inferior derecha)
     const baseOffset = new Vector3(
-      0.28 + swayX + actionOffsetX,
-      -0.22 + swayY + actionOffsetY,
-      -0.55 + swayZ + actionOffsetZ
+      0.22 + swayX + actionOffsetX,
+      -0.16 + swayY + actionOffsetY,
+      -0.4 + swayZ + actionOffsetZ
     );
 
     targetPos.current.copy(baseOffset);
@@ -323,8 +323,8 @@ export const PlayerTools: React.FC = () => {
     toolGroupRef.current.position.copy(currentPos.current);
 
     eulerAux.current.set(
-      camera.rotation.x + actionRotX + Math.sin(t * 1.5) * 0.015,
-      camera.rotation.y + actionRotY + Math.cos(t * 1.3) * 0.015,
+      camera.rotation.x + actionRotX + Math.sin(t * 1.5) * 0.012,
+      camera.rotation.y + actionRotY + Math.cos(t * 1.3) * 0.012,
       camera.rotation.z + actionRotZ,
       camera.rotation.order
     );
