@@ -147,12 +147,15 @@ export const generateAuditReportText = (): string => {
 
 /**
  * Mantiene accesible el reporte en window para inspección en tiempo de ejecución.
+ * Se expone tanto en __ASADO_MODEL_AUDIT__ como en __3D_MODELS_AUDIT__.
  */
 function updateAuditLogGlobal() {
   if (typeof window !== 'undefined') {
-    (window as any).__3D_MODELS_AUDIT__ = {
+    const payload = {
       history: getDiagnosticHistory(),
       reportText: generateAuditReportText()
     };
+    (window as any).__ASADO_MODEL_AUDIT__ = payload;
+    (window as any).__3D_MODELS_AUDIT__ = payload;
   }
 }

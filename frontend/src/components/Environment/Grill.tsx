@@ -1,12 +1,8 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { RigidBody, CuboidCollider } from '@react-three/rapier';
-import { Center } from '@react-three/drei';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
 import { Color, InstancedMesh, Object3D, Vector3 } from 'three';
 import { useAsadoStore } from '../../store/useAsadoStore';
-import { SafeGLTF } from '../Common/SafeModelLoader';
-
-const GRILL_MODEL_PATH = '/models/outdoor+barbecue+grill+3d+model.glb';
 
 // Partículas de óxido y ceniza que caen al cepillar los hierros calientes
 interface RustParticle {
@@ -75,7 +71,7 @@ const RustSparks: React.FC<{ activePoints: Vector3[] }> = ({ activePoints }) => 
   );
 };
 
-// Estructura de soporte y patas de la parrilla criolla
+// Estructura de soporte y patas de la parrilla criolla procedural
 const GrillStructure: React.FC<{ width: number; length: number; height: number }> = ({
   width,
   length,
@@ -146,7 +142,7 @@ export const Grill: React.FC = () => {
   // Material de las varillas que pasa de oxidado criollo a curado negro brillante
   const barColor = useMemo(() => {
     const rusty = new Color('#6e3a24');
-    const clean = new Color('#222222');
+    const clean = new Color('#1c1c1c');
     return clean.clone().lerp(rusty, rustLevel);
   }, [rustLevel]);
 
@@ -156,7 +152,7 @@ export const Grill: React.FC = () => {
   const handleBarClean = (e: ThreeEvent<PointerEvent>) => {
     if (selectedTool === 'cepillo') {
       e.stopPropagation();
-      cleanGrill(0.05);
+      cleanGrill(0.06);
       setActivePoints([e.point.clone()]);
     }
   };
@@ -184,8 +180,8 @@ export const Grill: React.FC = () => {
 
   return (
     <>
+      {/* Colisionador plano calibrado sobre los hierros para que la carne descanse firme sin colarse */}
       <RigidBody type="fixed" colliders={false}>
-        {/* Colisionador plano calibrado sobre los hierros para que la carne descanse firme */}
         <CuboidCollider
           args={[width / 2 + 0.04, 0.015, barLength / 2 + 0.02]}
           position={[0, grillHeight, 0]}
@@ -193,7 +189,7 @@ export const Grill: React.FC = () => {
         />
 
         <group position={[0, grillHeight, 0]}>
-          {/* Varillas de hierro redondo de la parrilla */}
+          {/* Varillas de hierro redondo de la parrilla procedural */}
           {Array.from({ length: numBars }).map((_, i) => (
             <mesh
               key={`bar-${i}`}
@@ -244,22 +240,8 @@ export const Grill: React.FC = () => {
         </group>
       </RigidBody>
 
-      {/* Estructura de patas y base refractaria de la parrilla */}
+      {/* Estructura de patas y base refractaria 100% procedural */}
       <GrillStructure width={width} length={barLength} height={grillHeight} />
-
-      {/* Modelo GLTF opcional como complemento ambiental si está presente */}
-      <group position={[0, -0.02, 0]}>
-        <SafeGLTF
-          modelPath={GRILL_MODEL_PATH}
-          fallback={null}
-        >
-          {({ scene }) => (
-            <Center scale={0.28} position={[0, 0, 0]}>
-              <primitive object={scene.clone()} />
-            </Center>
-          )}
-        </SafeGLTF>
-      </group>
 
       {/* Plano horizontal para arrastrar y colocar carne exactamente sobre los fierros */}
       <mesh

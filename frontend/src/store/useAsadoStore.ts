@@ -43,6 +43,7 @@ export interface AsadoStore {
   // Estado de los cortes
   meats: MeatItem[];
   addMeat: (meat: AddMeatInput) => void;
+  addNewRandomMeat: () => void;
   updateCookLevel: (id: string, levelDelta: number) => void;
   flipMeat: (id: string) => void;
   setMeatPosition: (id: string, pos: [number, number, number]) => void;
@@ -77,6 +78,7 @@ export interface AsadoStore {
   avanzarFogon: (delta: number) => void;
   tomarBrasasDelFogon: (amount?: number) => void;
   distribuirBrasasEnParrilla: (pos: [number, number, number]) => void;
+  interactFogon: () => void;
 
   // Limpieza y curado de la parrilla
   rustLevel: number;
@@ -105,8 +107,8 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   meats: [
     {
       id: 'corte-tira-base',
-      cut: 'Tira de Asado Criolla',
-      position: [0, 0.44, 0],
+      cut: 'Vacío Pampeano',
+      position: [0, 0.42, 0],
       cookLevel: 0,
       flipped: false
     }
@@ -122,9 +124,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     set((state) => ({
       placingMeatId: null,
       meats: state.meats.map((m) =>
-        m.id === id
-          ? { ...m, position: pos ?? m.position }
-          : m
+        m.id === id ? { ...m, position: pos ?? m.position } : m
       )
     }));
   },
@@ -162,6 +162,18 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
       ]
     };
   }),
+
+  addNewRandomMeat: () => {
+    const cuts = ['Vacío Pampeano', 'Chorizo Criollo', 'Tira de Asado Criolla', 'Choripán Gaucho'];
+    const randomCut = cuts[Math.floor(Math.random() * cuts.length)];
+    const newId = generateUniqueMeatId('corte');
+    get().addMeat({
+      id: newId,
+      cut: randomCut,
+      position: [0, 0.42, 0]
+    });
+    get().startPlacingMeat(newId);
+  },
 
   updateCookLevel: (id, levelDelta) => set((state) => ({
     meats: state.meats.map((meat) =>
@@ -292,6 +304,19 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     }
   },
 
+  interactFogon: () => {
+    const { fogonStage, colocarPapelYFosforo, encenderFogon, tomarBrasasDelFogon, setSelectedTool, triggerToolAction } = get();
+    triggerToolAction();
+    if (fogonStage === 'sin_fuego') {
+      colocarPapelYFosforo();
+    } else if (fogonStage === 'con_papel') {
+      encenderFogon();
+    } else if (fogonStage === 'brasas_listas') {
+      setSelectedTool('pala');
+      tomarBrasasDelFogon(8);
+    }
+  },
+
   cleanGrill: (amount = 0.06) => {
     get().triggerToolAction();
     set((state) => {
@@ -399,13 +424,11 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
       const dx = px - ember.position[0];
       const dz = pz - ember.position[2];
       const distSq = dx * dx + dz * dz;
-
-      if (distSq < 0.6) {
-        const falloff = Math.max(0, 1 - distSq / 0.6);
-        directHeat += ember.temperature * falloff * 0.8;
+      if (distSq < 0.25) {
+        directHeat += ember.temperature * Math.max(0, 1.0 - Math.sqrt(distSq) / 0.5);
       }
     }
 
-    return Math.min(3.0, gridHeat * 0.7 + directHeat);
+    return Math.min(3.0, gridHeat + directHeat);
   }
 }));

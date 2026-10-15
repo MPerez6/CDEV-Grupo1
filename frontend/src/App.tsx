@@ -17,11 +17,10 @@ const App: React.FC = () => {
   const placingMeatId = useAsadoStore((state) => state.placingMeatId);
 
   useEffect(() => {
-    // Si la parrilla está vacía, aseguramos el corte inicial único
     if (meats.length === 0) {
       addMeat({
         id: 'corte-tira-base',
-        cut: 'Tira de Asado Criolla',
+        cut: 'Vacío Pampeano',
         position: [0, 0.42, 0]
       });
     }
@@ -29,7 +28,7 @@ const App: React.FC = () => {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Interfaz de usuario (selector de utensilios y guía superior despejada) */}
+      {/* Interfaz de usuario (barra compacta superior [F][C][P][A][T][M] y estado inferior) */}
       <GameUI />
 
       {/* Canvas 3D principal */}
@@ -50,7 +49,7 @@ const App: React.FC = () => {
             ))}
           </Physics>
 
-          {/* Utensilios interactivos en mano del asador */}
+          {/* Utensilios interactivos en primera persona con animaciones de balanceo y acción */}
           <PlayerTools />
         </Suspense>
 

@@ -1,14 +1,12 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
-import { Center } from '@react-three/drei';
 import { RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier';
-import { Mesh, ShaderMaterial, Color, Vector3, Quaternion, Object3D } from 'three';
+import { ShaderMaterial, Color, Vector3, Quaternion } from 'three';
 import { useAsadoStore, MeatItem } from '../../store/useAsadoStore';
+import { GLBModel } from '../Common/GLBModel';
 import { SafeGLTF } from '../Common/SafeModelLoader';
 
-const MEAT_MODEL_PATH = '/models/meat_piece_raw.glb';
-
-// Vertex shader para el corte de carne vacuna criolla
+// Vertex shader para reacción térmica sobre el modelo 3D
 const vertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -23,7 +21,7 @@ const vertexShader = `
   }
 `;
 
-// Fragment shader: Reacción de Maillard paulatina y marcas de los hierros
+// Fragment shader: Reacción de Maillard gradual y marcas de hierros
 const fragmentShader = `
   uniform float uCookLevel;
   uniform vec3 uRawColor;
@@ -39,7 +37,7 @@ const fragmentShader = `
     float cl = clamp(uCookLevel, 0.0, 2.0);
     vec3 baseColor;
 
-    // Transición gradual de Maillard en 4 etapas cromáticas
+    // Transición gradual en 4 etapas cromáticas argentinas
     if (cl <= 0.6) {
       float t = smoothstep(0.0, 0.6, cl);
       baseColor = mix(uRawColor, uCrustColor, t);
@@ -51,7 +49,7 @@ const fragmentShader = `
       baseColor = mix(uTostadoColor, uBurntColor, t);
     }
 
-    // Marcas de los hierros de la parrilla (espaciado ~0.065m = ~15 radianes/m)
+    // Marcas de los hierros de la parrilla
     float barPattern = sin(vWorldPos.x * 96.0);
     if (cl > 0.2 && barPattern > 0.72) {
       float markFade = smoothstep(0.2, 0.9, cl) * 0.45;
@@ -70,55 +68,26 @@ const fragmentShader = `
   }
 `;
 
-interface MeatMeshProps {
-  scene: Object3D;
-  material: ShaderMaterial;
-}
-
-const MeatMesh: React.FC<MeatMeshProps> = ({ scene, material }) => {
-  const clone = useMemo(() => scene.clone(true), [scene]);
-
-  useEffect(() => {
-    clone.traverse((child) => {
-      if ((child as Mesh).isMesh) {
-        const meshChild = child as Mesh;
-        meshChild.material = material;
-        meshChild.castShadow = true;
-        meshChild.receiveShadow = true;
-      }
-    });
-  }, [clone, material]);
-
-  // Escala calibrada en rango {0.4} a {0.5} con <Center>
-  return (
-    <Center scale={0.45}>
-      <primitive object={clone} />
-    </Center>
-  );
-};
-
-// Fallback estilizado de alta fidelidad: tira de asado con carne, capa de grasa y hueso
-const MeatPieceFallback: React.FC<{ material: ShaderMaterial }> = ({ material }) => (
-  <Center scale={0.45}>
-    <group>
-      {/* Carne roja vacuna con reacción de Maillard */}
-      <mesh castShadow receiveShadow material={material}>
-        <boxGeometry args={[0.5, 0.1, 0.24]} />
+// Fallback estilizado procedural de tira de asado con carne, grasa y huesos
+const ProceduralMeatFallback: React.FC<{ material: ShaderMaterial }> = ({ material }) => (
+  <group>
+    {/* Carne roja vacuna con reacción de Maillard */}
+    <mesh castShadow receiveShadow material={material}>
+      <boxGeometry args={[0.38, 0.08, 0.2]} />
+    </mesh>
+    {/* Ribete de grasa dorada */}
+    <mesh position={[0, 0, 0.105]} castShadow>
+      <boxGeometry args={[0.37, 0.07, 0.015]} />
+      <meshStandardMaterial color="#ebe0cb" roughness={0.7} metalness={0.05} />
+    </mesh>
+    {/* Huesos de costilla */}
+    {[-0.12, 0, 0.12].map((x, i) => (
+      <mesh key={`bone-${i}`} position={[x, -0.01, -0.103]} castShadow>
+        <boxGeometry args={[0.05, 0.06, 0.02]} />
+        <meshStandardMaterial color="#e0d6c5" roughness={0.5} />
       </mesh>
-      {/* Ribete de grasa blanca/dorada */}
-      <mesh position={[0, 0, 0.125]} castShadow>
-        <boxGeometry args={[0.49, 0.08, 0.018]} />
-        <meshStandardMaterial color="#ebe0cb" roughness={0.7} metalness={0.05} />
-      </mesh>
-      {/* Huesos de costilla de tira */}
-      {[-0.15, 0, 0.15].map((x, i) => (
-        <mesh key={`bone-${i}`} position={[x, -0.01, -0.122]} castShadow>
-          <boxGeometry args={[0.06, 0.07, 0.02]} />
-          <meshStandardMaterial color="#e0d6c5" roughness={0.5} />
-        </mesh>
-      ))}
-    </group>
-  </Center>
+    ))}
+  </group>
 );
 
 interface Props {
@@ -139,21 +108,31 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
   const isBeingPlaced = placingMeatId === meat.id;
 
+  // Selección de asset GLB real y escala según corte
+  const isChorizo = meat.cut.toLowerCase().includes('chorizo') || meat.cut.toLowerCase().includes('chori');
+  const glbUrl = isChorizo ? '/models/chorizo.glb' : '/models/vacio.glb';
+  const targetSize = isChorizo ? 0.22 : 0.38;
+
+  // Dimensiones del colisionador Rapier según tipo de corte
+  const colliderHalfX = isChorizo ? 0.06 : 0.18;
+  const colliderHalfY = 0.035;
+  const colliderHalfZ = isChorizo ? 0.1 : 0.12;
+
   const maillardMaterial = useMemo(() => {
     return new ShaderMaterial({
       vertexShader,
       fragmentShader,
       uniforms: {
         uCookLevel: { value: meat.cookLevel },
-        uRawColor: { value: new Color('#ba2626') },
+        uRawColor: { value: new Color(isChorizo ? '#8a2818' : '#ba2626') },
         uCrustColor: { value: new Color('#8e4d25') },
         uTostadoColor: { value: new Color('#442315') },
         uBurntColor: { value: new Color('#14100e') }
       }
     });
-  }, []);
+  }, [isChorizo]);
 
-  // Volteo parrillero estable: resetea velocidades lineales y angulares a cero
+  // Volteo parrillero estable: resetea velocidades lineales y angulares
   useEffect(() => {
     if (prevFlippedRef.current !== meat.flipped && rigidBodyRef.current && !isBeingPlaced) {
       prevFlippedRef.current = meat.flipped;
@@ -168,10 +147,10 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       currentQ.multiply(flipQ);
       rigidBodyRef.current.setRotation(currentQ, true);
 
-      // Leve elevación para asentarse del otro lado
+      // Posicionamiento seguro sobre los hierros (grillHeight = 0.35 + delta)
       const curPos = rigidBodyRef.current.translation();
       const safeX = !isNaN(curPos.x) ? curPos.x : meat.position[0];
-      const safeY = !isNaN(curPos.y) ? Math.max(curPos.y, 0.38) + 0.03 : 0.42;
+      const safeY = !isNaN(curPos.y) ? Math.max(curPos.y, 0.39) + 0.02 : 0.41;
       const safeZ = !isNaN(curPos.z) ? curPos.z : meat.position[2];
       rigidBodyRef.current.setTranslation({ x: safeX, y: safeY, z: safeZ }, true);
     }
@@ -180,7 +159,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   useFrame((_state, delta) => {
     if (isBeingPlaced && rigidBodyRef.current) {
       rigidBodyRef.current.setNextKinematicTranslation(
-        new Vector3(meat.position[0], meat.position[1], meat.position[2])
+        new Vector3(meat.position[0], Math.max(meat.position[1], 0.40), meat.position[2])
       );
       return;
     }
@@ -196,9 +175,9 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
         currentY = translation.y;
         currentZ = translation.z;
 
-        // Red de seguridad: si cae accidentalmente por debajo de los hierros, reponerlo en la parrilla
-        if (currentY < 0.28) {
-          rigidBodyRef.current.setTranslation({ x: currentX, y: 0.42, z: currentZ }, true);
+        // Red de seguridad: si cae por debajo de la parrilla (0.35m), reponerlo firme arriba
+        if (currentY < 0.34) {
+          rigidBodyRef.current.setTranslation({ x: currentX, y: 0.40, z: currentZ }, true);
           rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
           rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
         }
@@ -208,7 +187,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     const heat = getHeatAtPosition(currentX, currentY, currentZ);
 
     if (heat >= 0.05 && meat.cookLevel < 2.0) {
-      const cookSpeed = 0.00065;
+      const cookSpeed = 0.0007;
       const cookDelta = heat * cookSpeed * delta;
       updateCookLevel(meat.id, cookDelta);
     }
@@ -230,7 +209,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       return;
     }
 
-    // Pinchar y voltear con tenedor
+    // Pinchar y dar vuelta con tenedor
     if (selectedTool === 'tenedor') {
       flipMeat(meat.id);
     } else {
@@ -244,13 +223,16 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       type={isBeingPlaced ? 'kinematicPosition' : 'dynamic'}
       colliders={false}
       friction={0.9}
-      restitution={0.02}
-      mass={1.2}
-      position={meat.position}
+      restitution={0.01}
+      mass={1.4}
+      position={[meat.position[0], Math.max(meat.position[1], 0.40), meat.position[2]]}
       canSleep={false}
     >
-      {/* Colisionador proporcional para que el corte no atraviese las barras */}
-      <CuboidCollider args={[0.24, 0.05, 0.13]} position={[0, 0.01, 0]} />
+      {/* Colisionador proporcional y plano para que repose firme sobre la cota Y de la parrilla */}
+      <CuboidCollider
+        args={[colliderHalfX, colliderHalfY, colliderHalfZ]}
+        position={[0, colliderHalfY, 0]}
+      />
 
       <group
         onPointerDown={handlePointerDown}
@@ -269,10 +251,18 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
         }}
       >
         <SafeGLTF
-          modelPath={MEAT_MODEL_PATH}
-          fallback={<MeatPieceFallback material={maillardMaterial} />}
+          modelPath={glbUrl}
+          fallback={<ProceduralMeatFallback material={maillardMaterial} />}
         >
-          {({ scene }) => <MeatMesh scene={scene} material={maillardMaterial} />}
+          {() => (
+            <GLBModel
+              url={glbUrl}
+              targetSize={targetSize}
+              customMaterial={maillardMaterial}
+              castShadow
+              receiveShadow
+            />
+          )}
         </SafeGLTF>
       </group>
     </RigidBody>

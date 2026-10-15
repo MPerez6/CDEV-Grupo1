@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { useAsadoStore, generateUniqueMeatId, AsadoTool } from '../../store/useAsadoStore';
+import { useAsadoStore, AsadoTool } from '../../store/useAsadoStore';
 
 export const GameUI: React.FC = () => {
   const selectedTool = useAsadoStore((state) => state.selectedTool);
   const setSelectedTool = useAsadoStore((state) => state.setSelectedTool);
   const meats = useAsadoStore((state) => state.meats);
-  const addMeat = useAsadoStore((state) => state.addMeat);
+  const addNewRandomMeat = useAsadoStore((state) => state.addNewRandomMeat);
+  const interactFogon = useAsadoStore((state) => state.interactFogon);
 
   const fogonStage = useAsadoStore((state) => state.fogonStage);
   const fogonProgress = useAsadoStore((state) => state.fogonProgress);
@@ -13,63 +14,95 @@ export const GameUI: React.FC = () => {
   const carriedEmbersCount = useAsadoStore((state) => state.carriedEmbersCount);
   const rustLevel = useAsadoStore((state) => state.rustLevel);
   const isClean = useAsadoStore((state) => state.isClean);
-  const colocarPapelYFosforo = useAsadoStore((state) => state.colocarPapelYFosforo);
-  const encenderFogon = useAsadoStore((state) => state.encenderFogon);
 
   const placingMeatId = useAsadoStore((state) => state.placingMeatId);
-  const startPlacingMeat = useAsadoStore((state) => state.startPlacingMeat);
   const cancelPlacingMeat = useAsadoStore((state) => state.cancelPlacingMeat);
 
   const [showLoreModal, setShowLoreModal] = useState(false);
 
-  const handleAddNewMeat = () => {
-    const cuts = ['Tira de Asado Criolla', 'Vacío Pampeano', 'Entraña Criolla', 'Bife de Costilla'];
-    const randomCut = cuts[Math.floor(Math.random() * cuts.length)];
-    const newId = generateUniqueMeatId('corte');
+  interface KeyItem {
+    key: string;
+    label: string;
+    icon: string;
+    tool?: AsadoTool;
+    action?: () => void;
+    badge?: number;
+  }
 
-    addMeat({
-      id: newId,
-      cut: randomCut,
-      position: [0, 0.44, 0]
-    });
-    startPlacingMeat(newId);
-  };
-
-  const toolsHud: { id: AsadoTool; keyHint: string; label: string; icon: string }[] = [
-    { id: 'cepillo', keyHint: 'C / 1', label: 'Cepillo', icon: '🧹' },
-    { id: 'pala', keyHint: 'P / 2', label: 'Pala', icon: '🪵' },
-    { id: 'atizador', keyHint: 'A / 3', label: 'Atizador', icon: '🦯' },
-    { id: 'tenedor', keyHint: 'T / 4', label: 'Tenedor', icon: '🍴' },
+  const mainShortcuts: KeyItem[] = [
+    {
+      key: 'F',
+      label: 'Fogón',
+      icon: '🔥',
+      action: interactFogon,
+      badge: fogonStage === 'brasas_listas' ? fogonEmbersCount : undefined,
+    },
+    {
+      key: 'C',
+      label: 'Cepillo',
+      icon: '🧹',
+      tool: 'cepillo',
+      action: () => setSelectedTool('cepillo'),
+    },
+    {
+      key: 'P',
+      label: 'Pala',
+      icon: '🪵',
+      tool: 'pala',
+      action: () => setSelectedTool('pala'),
+      badge: carriedEmbersCount > 0 ? carriedEmbersCount : undefined,
+    },
+    {
+      key: 'A',
+      label: 'Atizador',
+      icon: '🦯',
+      tool: 'atizador',
+      action: () => setSelectedTool('atizador'),
+    },
+    {
+      key: 'T',
+      label: 'Tenedor',
+      icon: '🍴',
+      tool: 'tenedor',
+      action: () => setSelectedTool('tenedor'),
+    },
+    {
+      key: 'M',
+      label: 'Carne',
+      icon: '🥩',
+      action: addNewRandomMeat,
+    },
   ];
 
   return (
     <div style={styles.hudContainer}>
-      {/* 1. GUÍA HUD DISCRETA SUPERIOR CON ATAJOS POR TECLADO (sin tapar la parrilla ni depender de clics) */}
+      {/* 1. BARRA COMPACTA SUPERIOR DE CONTROLES: [F] Fogón | [C] Cepillo | [P] Pala | [A] Atizador | [T] Tenedor | [M] Carne */}
       <header style={styles.topHudBar} aria-label="Controles del Asador">
         <div style={styles.keysGroup}>
-          {toolsHud.map((t) => {
-            const isActive = selectedTool === t.id;
+          {mainShortcuts.map((item) => {
+            const isActive = item.tool && selectedTool === item.tool;
             return (
               <div
-                key={t.id}
+                key={item.key}
                 style={isActive ? styles.hudKeyItemActive : styles.hudKeyItem}
-                onClick={() => setSelectedTool(t.id)}
-                title={`Presiona [${t.keyHint}] para equipar ${t.label}`}
+                onClick={item.action}
+                title={`Presiona [${item.key}] para ${item.label}`}
               >
-                <span style={styles.keyBadge}>[{t.keyHint}]</span>
-                <span style={styles.keyIcon}>{t.icon}</span>
-                <span style={styles.keyName}>{t.label}</span>
-                {t.id === 'pala' && carriedEmbersCount > 0 && (
-                  <span style={styles.carriedBadge}>{carriedEmbersCount}</span>
+                <span style={styles.keyBadge}>[{item.key}]</span>
+                <span style={styles.keyIcon}>{item.icon}</span>
+                <span style={styles.keyName}>{item.label}</span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span style={styles.carriedBadge}>{item.badge}</span>
                 )}
               </div>
             );
           })}
 
+          {/* Opción Mano Libre [ESC] */}
           <div
             style={selectedTool === 'ninguna' ? styles.hudKeyItemActive : styles.hudKeyItem}
             onClick={() => setSelectedTool('ninguna')}
-            title="Presiona [ESC] para desequipar herramienta"
+            title="Presiona [ESC] o [E] para mano libre"
           >
             <span style={styles.keyBadge}>[ESC]</span>
             <span style={styles.keyName}>Mano libre</span>
@@ -79,21 +112,13 @@ export const GameUI: React.FC = () => {
         {/* Separador fino */}
         <div style={styles.verticalDivider} />
 
-        {/* Controles discretos en esquina superior */}
+        {/* Acciones contextuales secundarias */}
         <div style={styles.quickActionsGroup}>
-          <button
-            style={styles.pillBtn}
-            onClick={handleAddNewMeat}
-            title="Añadir otro corte a la parrilla"
-          >
-            + Corte
-          </button>
-
           {placingMeatId && (
             <button
               style={styles.confirmPillBtn}
               onClick={cancelPlacingMeat}
-              title="Asentar corte en su posición"
+              title="Asentar corte en la parrilla"
             >
               ✓ Asentar
             </button>
@@ -102,68 +127,65 @@ export const GameUI: React.FC = () => {
           <button
             style={styles.infoPillBtn}
             onClick={() => setShowLoreModal(!showLoreModal)}
-            title="Tradición del asado criollo"
+            title="Tradición Criolla"
           >
             ℹ️
           </button>
         </div>
       </header>
 
-      {/* 2. BARRA DE ESTADO SUTIL INFERIOR (Fuego, fierros y consejo contextual sin bloquear la escena) */}
-      <div style={styles.bottomStatusBanner}>
+      {/* 2. CONSEJOS DEL ASADOR Y ESTADO EN BARRA INFERIOR DESPEJADA */}
+      <footer style={styles.bottomStatusBanner}>
         <div style={styles.statusChipsRow}>
-          {fogonStage === 'sin_fuego' && (
-            <button style={styles.fogonPillAction} onClick={colocarPapelYFosforo}>
-              🪵 Iniciar Fogón (Papel y Fósforo)
-            </button>
-          )}
-
-          {fogonStage === 'con_papel' && (
-            <button style={styles.fogonPillHot} onClick={encenderFogon}>
-              🔥 Encender Leña de Quebracho
-            </button>
-          )}
-
-          {fogonStage === 'encendido' && (
-            <div style={styles.guideBadge}>
-              🔥 Leña ardiendo: <strong>{Math.round(fogonProgress * 100)}%</strong>
-            </div>
-          )}
-
-          {fogonStage === 'brasas_listas' && (
-            <div style={styles.guideBadge}>
-              ✨ Brasas listas: <strong>{fogonEmbersCount}</strong>
-              {carriedEmbersCount > 0 ? ` | En pala: ${carriedEmbersCount}` : ''}
-            </div>
-          )}
+          <div style={styles.guideBadge}>
+            🔥 Fogón:{' '}
+            <strong>
+              {fogonStage === 'sin_fuego'
+                ? 'Sin Fuego [F]'
+                : fogonStage === 'con_papel'
+                ? 'Papel Listo [F]'
+                : fogonStage === 'encendido'
+                ? `Ardiendo ${Math.round(fogonProgress * 100)}%`
+                : `Brasas: ${fogonEmbersCount}`}
+            </strong>
+          </div>
 
           <div style={styles.guideBadge}>
-            Fierros: <strong>{isClean ? 'Curados' : `${Math.round((1 - rustLevel) * 100)}%`}</strong>
+            🧹 Fierros:{' '}
+            <strong>
+              {isClean ? 'Curados y Limpios' : `${Math.round((1 - rustLevel) * 100)}% Limpio`}
+            </strong>
           </div>
+
+          {carriedEmbersCount > 0 && (
+            <div style={styles.guideBadgeHot}>
+              🪵 En Pala: <strong>{carriedEmbersCount} brasas</strong>
+            </div>
+          )}
         </div>
 
-        {/* Tip contextual ultra discreto */}
+        {/* Consejo contextual criollo */}
         <div style={styles.subtextHint}>
           {placingMeatId ? (
             <span>🥩 <strong>Acomodar:</strong> Mové el puntero y hacé clic sobre la parrilla para asentar el corte.</span>
           ) : selectedTool === 'tenedor' ? (
-            <span>🍴 <strong>Tenedor [T/4]:</strong> Clic en el corte para pinchar y voltear. Shift+clic para mover.</span>
+            <span>🍴 <strong>Tenedor [T]:</strong> Hacé clic en el corte para pinchar y dar vuelta. Shift+clic para mover.</span>
           ) : selectedTool === 'pala' ? (
-            <span>🪵 <strong>Pala [P/2]:</strong> Clic en el fogonero para tomar brasas y clic bajo los hierros para distribuirlas.</span>
+            <span>🪵 <strong>Pala [P]:</strong> Clic en el fogón para cargar brasas y clic bajo los hierros para distribuirlas.</span>
           ) : selectedTool === 'atizador' ? (
-            <span>🦯 <strong>Atizador [A/3]:</strong> Clic bajo la parrilla para esparcir y avivar el colchón de calor parejo.</span>
+            <span>🦯 <strong>Atizador [A]:</strong> Clic bajo la parrilla para desparramar brasas y lograr un calor parejo.</span>
           ) : selectedTool === 'cepillo' ? (
-            <span>🧹 <strong>Cepillo [C/1]:</strong> Arrastrá con el botón apretado sobre las varillas para curar los hierros.</span>
+            <span>🧹 <strong>Cepillo [C]:</strong> Arrastrá con clic apretado sobre los hierros para curarlos antes de asar.</span>
           ) : (
-            <span>🖐️ <strong>Mano libre [ESC]:</strong> Usá C, P, A o T para empuñar tus herramientas criollas.</span>
+            <span>🖐️ <strong>Mano libre [ESC]:</strong> Usá F, C, P, A, T o M para controlar el asado criollo.</span>
           )}
         </div>
-      </div>
+      </footer>
 
-      {/* 3. MONITOR LATERAL COMPACTO DE COCCIÓN */}
+      {/* 3. MONITOR DE COCCIÓN LATERAL COMPACTO */}
       {meats.length > 0 && (
         <aside style={styles.bottomMonitor}>
-          <div style={styles.monitorHeader}>🔥 Punto de Cocción:</div>
+          <div style={styles.monitorHeader}>🥩 Punto de Cocción:</div>
           {meats.map((m) => {
             let label = 'Crudo';
             let color = '#e74c3c';
@@ -197,12 +219,13 @@ export const GameUI: React.FC = () => {
         <div style={styles.loreCard}>
           <div style={styles.loreTitle}>TRADICIÓN DEL ASADO CRIOLLO</div>
           <p style={styles.loreBody}>
-            El secreto de la carne argentina reside en la paciencia: primero encender la leña de quebracho
-            en el brasero lateral, aguardar las brasas al rojo vivo, curar los fierros con papel de diario o cepillo
-            y trasladar el calor suavemente bajo la parrilla para lograr la auténtica reacción de Maillard sin apurar el corte.
+            El secreto del asado argentino reside en la paciencia y el respeto al fuego:
+            iniciar la leña en el fogonero lateral [F], curar los hierros con cepillo [C],
+            acarrear brasas vivas bajo la parrilla [P], desparramarlas con el atizador [A]
+            y dorar los cortes con tenedor [T] sin apurar la Reacción de Maillard.
           </p>
           <button style={styles.closeLoreBtn} onClick={() => setShowLoreModal(false)}>
-            Volver a los Fierros
+            Volver a la Parrilla
           </button>
         </div>
       )}
@@ -223,7 +246,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: '#f5efe6',
     boxSizing: 'border-box'
   },
-  // Guía HUD superior translúcida y no intrusiva
   topHudBar: {
     position: 'absolute',
     top: '12px',
@@ -233,12 +255,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    backgroundColor: 'rgba(18, 12, 9, 0.78)',
+    backgroundColor: 'rgba(18, 12, 9, 0.82)',
     backdropFilter: 'blur(8px)',
     border: '1px solid rgba(138, 70, 30, 0.45)',
     borderRadius: '10px',
-    padding: '4px 12px',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+    padding: '5px 14px',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.45)',
     zIndex: 20
   },
   keysGroup: {
@@ -295,7 +317,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: '#e65100',
     color: '#ffffff',
     borderRadius: '8px',
-    padding: '0 4px',
+    padding: '0 5px',
     fontSize: '9px',
     fontWeight: 800
   },
@@ -309,22 +331,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: 'center',
     gap: '6px'
   },
-  pillBtn: {
-    backgroundColor: '#9c3d18',
-    color: '#ffffff',
-    border: '1px solid #d35400',
-    borderRadius: '6px',
-    padding: '3px 8px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer'
-  },
   confirmPillBtn: {
     backgroundColor: '#27ae60',
     color: '#ffffff',
     border: '1px solid #2ecc71',
     borderRadius: '6px',
-    padding: '3px 8px',
+    padding: '4px 10px',
     fontSize: '11px',
     fontWeight: 700,
     cursor: 'pointer'
@@ -333,7 +345,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: 'transparent',
     border: '1px solid rgba(255, 255, 255, 0.15)',
     borderRadius: '6px',
-    padding: '3px 6px',
+    padding: '3px 7px',
     color: '#ffcc88',
     cursor: 'pointer',
     fontSize: '11px'
@@ -343,7 +355,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     bottom: '16px',
     left: '50%',
     transform: 'translateX(-50%)',
-    backgroundColor: 'rgba(18, 12, 9, 0.8)',
+    backgroundColor: 'rgba(18, 12, 9, 0.82)',
     backdropFilter: 'blur(6px)',
     border: '1px solid rgba(138, 70, 30, 0.35)',
     borderRadius: '8px',
@@ -353,7 +365,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: 'center',
     gap: '4px',
     pointerEvents: 'auto',
-    zIndex: 15
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+    maxWidth: '90vw'
   },
   statusChipsRow: {
     display: 'flex',
@@ -362,103 +375,88 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexWrap: 'wrap',
     justifyContent: 'center'
   },
-  fogonPillAction: {
-    backgroundColor: '#b9770e',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '3px 10px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer'
-  },
-  fogonPillHot: {
-    backgroundColor: '#c0392b',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '3px 10px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: '0 0 6px #e74c3c'
-  },
   guideBadge: {
-    backgroundColor: 'rgba(40, 24, 16, 0.6)',
+    backgroundColor: 'rgba(38, 24, 16, 0.65)',
+    border: '1px solid rgba(80, 48, 30, 0.5)',
     borderRadius: '6px',
-    padding: '2px 8px',
+    padding: '3px 8px',
     fontSize: '11px',
     color: '#d4c5b9'
   },
+  guideBadgeHot: {
+    backgroundColor: '#873600',
+    border: '1px solid #f39c12',
+    borderRadius: '6px',
+    padding: '3px 8px',
+    fontSize: '11px',
+    color: '#ffffff',
+    fontWeight: 700
+  },
   subtextHint: {
     fontSize: '11px',
-    color: '#d8c2b0',
+    color: '#e0c9b6',
     textAlign: 'center'
   },
   bottomMonitor: {
     position: 'absolute',
     bottom: '16px',
     left: '16px',
-    backgroundColor: 'rgba(20, 14, 10, 0.85)',
+    backgroundColor: 'rgba(18, 12, 9, 0.82)',
     backdropFilter: 'blur(6px)',
-    border: '1px solid rgba(138, 70, 30, 0.4)',
+    border: '1px solid rgba(138, 70, 30, 0.35)',
     borderRadius: '8px',
     padding: '8px 12px',
-    minWidth: '180px',
+    fontSize: '11px',
     pointerEvents: 'auto',
-    zIndex: 15
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)'
   },
   monitorHeader: {
-    fontSize: '11px',
     fontWeight: 700,
-    color: '#f39c12',
     marginBottom: '4px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.4px'
+    color: '#ffaa66',
+    fontSize: '11px'
   },
   monitorRow: {
-    fontSize: '11px',
     display: 'flex',
     justifyContent: 'space-between',
-    padding: '2px 0'
+    gap: '10px',
+    lineHeight: '1.4'
   },
   loreCard: {
     position: 'absolute',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    backgroundColor: 'rgba(24, 16, 12, 0.95)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid #d35400',
+    backgroundColor: '#1b120c',
+    border: '2px solid #b3541e',
     borderRadius: '12px',
-    padding: '20px',
-    maxWidth: '420px',
-    width: '90%',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7)',
+    padding: '24px',
+    maxWidth: '440px',
+    color: '#f5efe6',
     pointerEvents: 'auto',
-    zIndex: 30
-  },
-  loreTitle: {
-    fontSize: '14px',
-    fontWeight: 800,
-    color: '#e67e22',
-    letterSpacing: '0.8px',
-    marginBottom: '10px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7)',
+    zIndex: 50,
     textAlign: 'center'
   },
+  loreTitle: {
+    fontSize: '16px',
+    fontWeight: 800,
+    color: '#f39c12',
+    marginBottom: '12px',
+    letterSpacing: '0.5px'
+  },
   loreBody: {
-    fontSize: '12px',
+    fontSize: '13px',
     lineHeight: '1.6',
-    color: '#ecf0f1',
-    margin: '0 0 16px 0'
+    color: '#d4c5b9',
+    marginBottom: '16px'
   },
   closeLoreBtn: {
-    width: '100%',
     backgroundColor: '#873600',
-    color: '#fff',
+    color: '#ffffff',
     border: 'none',
     borderRadius: '6px',
-    padding: '8px',
+    padding: '8px 16px',
     fontSize: '12px',
     fontWeight: 700,
     cursor: 'pointer'
