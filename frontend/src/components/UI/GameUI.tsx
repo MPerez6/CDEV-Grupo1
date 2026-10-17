@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAsadoStore, AsadoTool } from '../../store/useAsadoStore';
 
 export const GameUI: React.FC = () => {
   const selectedTool = useAsadoStore((state) => state.selectedTool);
   const setSelectedTool = useAsadoStore((state) => state.setSelectedTool);
   const meats = useAsadoStore((state) => state.meats);
-  const addNewRandomMeat = useAsadoStore((state) => state.addNewRandomMeat);
+  const addNewMeat = useAsadoStore((state) => state.addNewMeat);
   const interactFogon = useAsadoStore((state) => state.interactFogon);
 
   const fogonStage = useAsadoStore((state) => state.fogonStage);
@@ -16,9 +16,47 @@ export const GameUI: React.FC = () => {
   const isClean = useAsadoStore((state) => state.isClean);
 
   const placingMeatId = useAsadoStore((state) => state.placingMeatId);
-  const cancelPlacingMeat = useAsadoStore((state) => state.cancelPlacingMeat);
 
   const [showLoreModal, setShowLoreModal] = useState(false);
+  const [showMeatMenu, setShowMeatMenu] = useState(false);
+  const meatMenuRef = useRef<HTMLDivElement>(null);
+  const meatBtnRef = useRef<HTMLDivElement>(null);
+
+  // Manejador de teclado para [M] (selector de carne) y [ESC] (cerrar popover o mano libre)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        setShowMeatMenu((prev) => !prev);
+      } else if (e.key === 'Escape') {
+        if (showMeatMenu) {
+          e.preventDefault();
+          setShowMeatMenu(false);
+        }
+      }
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        meatMenuRef.current &&
+        !meatMenuRef.current.contains(target) &&
+        meatBtnRef.current &&
+        !meatBtnRef.current.contains(target)
+      ) {
+        setShowMeatMenu(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMeatMenu]);
 
   interface KeyItem {
     key: string;
@@ -27,6 +65,8 @@ export const GameUI: React.FC = () => {
     tool?: AsadoTool;
     action?: () => void;
     badge?: number;
+    ref?: React.RefObject<HTMLDivElement | null>;
+    isActive?: boolean;
   }
 
   const mainShortcuts: KeyItem[] = [
@@ -70,7 +110,9 @@ export const GameUI: React.FC = () => {
       key: 'M',
       label: 'Carne',
       icon: '🥩',
-      action: addNewRandomMeat,
+      action: () => setShowMeatMenu((prev) => !prev),
+      ref: meatBtnRef,
+      isActive: showMeatMenu,
     },
   ];
 
@@ -80,10 +122,11 @@ export const GameUI: React.FC = () => {
       <header style={styles.topHudBar} aria-label="Controles del Asador">
         <div style={styles.keysGroup}>
           {mainShortcuts.map((item) => {
-            const isActive = item.tool && selectedTool === item.tool;
+            const isActive = item.isActive ?? (item.tool && selectedTool === item.tool);
             return (
               <div
                 key={item.key}
+                ref={item.ref as React.RefObject<HTMLDivElement>}
                 style={isActive ? styles.hudKeyItemActive : styles.hudKeyItem}
                 onClick={item.action}
                 title={`Presiona [${item.key}] para ${item.label}`}
@@ -101,7 +144,10 @@ export const GameUI: React.FC = () => {
           {/* Opción Mano Libre [ESC] */}
           <div
             style={selectedTool === 'ninguna' ? styles.hudKeyItemActive : styles.hudKeyItem}
-            onClick={() => setSelectedTool('ninguna')}
+            onClick={() => {
+              setSelectedTool('ninguna');
+              setShowMeatMenu(false);
+            }}
             title="Presiona [ESC] o [E] para mano libre"
           >
             <span style={styles.keyBadge}>[ESC]</span>
@@ -112,18 +158,8 @@ export const GameUI: React.FC = () => {
         {/* Separador fino */}
         <div style={styles.verticalDivider} />
 
-        {/* Acciones contextuales secundarias */}
+        {/* Botón de información criolla (el botón Asentar fue eliminado definitivamente) */}
         <div style={styles.quickActionsGroup}>
-          {placingMeatId && (
-            <button
-              style={styles.confirmPillBtn}
-              onClick={cancelPlacingMeat}
-              title="Asentar corte en la parrilla"
-            >
-              ✓ Asentar
-            </button>
-          )}
-
           <button
             style={styles.infoPillBtn}
             onClick={() => setShowLoreModal(!showLoreModal)}
@@ -132,6 +168,39 @@ export const GameUI: React.FC = () => {
             ℹ️
           </button>
         </div>
+
+        {/* Popover selector de cortes criollos dark-glass */}
+        {showMeatMenu && (
+          <div ref={meatMenuRef} style={styles.meatSelectorPopover}>
+            <div style={styles.meatSelectorHeader}>ELEGIR CORTE PARA LA PARRILLA</div>
+            <button
+              style={styles.meatSelectorOption}
+              onClick={() => {
+                addNewMeat('vacio');
+                setShowMeatMenu(false);
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>🥩</span>
+              <div style={styles.meatOptionTextCol}>
+                <span style={styles.meatOptionTitle}>Vacío Pampeano</span>
+                <span style={styles.meatOptionDesc}>Corte vacuno ancho con costilla y grasa dorada</span>
+              </div>
+            </button>
+            <button
+              style={styles.meatSelectorOption}
+              onClick={() => {
+                addNewMeat('chorizo');
+                setShowMeatMenu(false);
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>🌭</span>
+              <div style={styles.meatOptionTextCol}>
+                <span style={styles.meatOptionTitle}>Chorizo Criollo</span>
+                <span style={styles.meatOptionDesc}>Embutido parrillero de puro cerdo y especias</span>
+              </div>
+            </button>
+          </div>
+        )}
       </header>
 
       {/* 2. CONSEJOS DEL ASADOR Y ESTADO EN BARRA INFERIOR DESPEJADA */}
@@ -164,10 +233,10 @@ export const GameUI: React.FC = () => {
           )}
         </div>
 
-        {/* Consejo contextual criollo */}
+        {/* Consejo contextual criollo actualizado */}
         <div style={styles.subtextHint}>
           {placingMeatId ? (
-            <span>🥩 <strong>Acomodar:</strong> Mové el puntero y hacé clic sobre la parrilla para asentar el corte.</span>
+            <span>🥩 <strong>Acomodar:</strong> Hacé clic sobre la parrilla o sobre el corte para soltarlo en los fierros.</span>
           ) : selectedTool === 'tenedor' ? (
             <span>🍴 <strong>Tenedor [T]:</strong> Hacé clic en el corte para pinchar y dar vuelta. Shift+clic para mover.</span>
           ) : selectedTool === 'pala' ? (
@@ -331,16 +400,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: 'center',
     gap: '6px'
   },
-  confirmPillBtn: {
-    backgroundColor: '#27ae60',
-    color: '#ffffff',
-    border: '1px solid #2ecc71',
-    borderRadius: '6px',
-    padding: '4px 10px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer'
-  },
   infoPillBtn: {
     backgroundColor: 'transparent',
     border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -349,6 +408,58 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: '#ffcc88',
     cursor: 'pointer',
     fontSize: '11px'
+  },
+  meatSelectorPopover: {
+    position: 'absolute',
+    top: 'calc(100% + 8px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: 'rgba(20, 13, 9, 0.94)',
+    backdropFilter: 'blur(10px)',
+    border: '1px solid rgba(211, 84, 0, 0.55)',
+    borderRadius: '8px',
+    padding: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.65), 0 0 12px rgba(230, 81, 0, 0.25)',
+    minWidth: '260px',
+    zIndex: 50
+  },
+  meatSelectorHeader: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.8px',
+    color: '#f39c12',
+    padding: '2px 4px 6px 4px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    textAlign: 'center'
+  },
+  meatSelectorOption: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '8px 10px',
+    borderRadius: '6px',
+    backgroundColor: 'rgba(42, 26, 17, 0.75)',
+    border: '1px solid rgba(138, 70, 30, 0.45)',
+    cursor: 'pointer',
+    textAlign: 'left',
+    transition: 'all 0.15s ease'
+  },
+  meatOptionTextCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px'
+  },
+  meatOptionTitle: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#f5efe6'
+  },
+  meatOptionDesc: {
+    fontSize: '10px',
+    color: '#bcaaa4'
   },
   bottomStatusBanner: {
     position: 'absolute',
@@ -384,81 +495,87 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: '#d4c5b9'
   },
   guideBadgeHot: {
-    backgroundColor: '#873600',
-    border: '1px solid #f39c12',
+    backgroundColor: 'rgba(138, 40, 10, 0.75)',
+    border: '1px solid #e65100',
     borderRadius: '6px',
     padding: '3px 8px',
     fontSize: '11px',
     color: '#ffffff',
-    fontWeight: 700
+    boxShadow: '0 0 6px rgba(230, 81, 0, 0.4)'
   },
   subtextHint: {
     fontSize: '11px',
-    color: '#e0c9b6',
-    textAlign: 'center'
+    color: '#e0d5cb',
+    textAlign: 'center',
+    lineHeight: 1.3
   },
   bottomMonitor: {
     position: 'absolute',
     bottom: '16px',
     left: '16px',
-    backgroundColor: 'rgba(18, 12, 9, 0.82)',
+    backgroundColor: 'rgba(18, 12, 9, 0.85)',
     backdropFilter: 'blur(6px)',
-    border: '1px solid rgba(138, 70, 30, 0.35)',
+    border: '1px solid rgba(138, 70, 30, 0.4)',
     borderRadius: '8px',
     padding: '8px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
     fontSize: '11px',
     pointerEvents: 'auto',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)'
+    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)'
   },
   monitorHeader: {
     fontWeight: 700,
-    marginBottom: '4px',
-    color: '#ffaa66',
-    fontSize: '11px'
+    color: '#f39c12',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    paddingBottom: '3px',
+    marginBottom: '2px'
   },
   monitorRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    gap: '10px',
-    lineHeight: '1.4'
+    gap: '12px'
   },
   loreCard: {
     position: 'absolute',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    backgroundColor: '#1b120c',
-    border: '2px solid #b3541e',
+    backgroundColor: 'rgba(24, 16, 12, 0.96)',
+    backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(211, 84, 0, 0.65)',
     borderRadius: '12px',
     padding: '24px',
-    maxWidth: '440px',
-    color: '#f5efe6',
+    maxWidth: '480px',
+    width: '90%',
+    textAlign: 'center',
     pointerEvents: 'auto',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7)',
-    zIndex: 50,
-    textAlign: 'center'
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7), 0 0 16px rgba(230, 81, 0, 0.3)',
+    zIndex: 100
   },
   loreTitle: {
-    fontSize: '16px',
+    fontSize: '15px',
     fontWeight: 800,
+    letterSpacing: '1px',
     color: '#f39c12',
-    marginBottom: '12px',
-    letterSpacing: '0.5px'
+    marginBottom: '12px'
   },
   loreBody: {
-    fontSize: '13px',
+    fontSize: '12px',
     lineHeight: '1.6',
-    color: '#d4c5b9',
+    color: '#e5d7cc',
     marginBottom: '16px'
   },
   closeLoreBtn: {
-    backgroundColor: '#873600',
+    backgroundColor: '#b8441c',
     color: '#ffffff',
     border: 'none',
     borderRadius: '6px',
-    padding: '8px 16px',
+    padding: '8px 18px',
     fontSize: '12px',
     fontWeight: 700,
-    cursor: 'pointer'
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4)'
   }
 };

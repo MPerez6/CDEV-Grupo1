@@ -10,6 +10,16 @@ import { MODEL_REGISTRY } from '../../config/modelRegistry';
 const PALA_ATIZADOR_URL = MODEL_REGISTRY.PALA_Y_ATIZADOR.url;
 const CARBON_URL = MODEL_REGISTRY.CARBON.url;
 
+// Configuración de clúster de brasas incandescentes para la pala
+const SHOVEL_EMBERS = [
+  { position: [0.0, 0.23, 0.005] as [number, number, number], rotation: [0.25, 0.4, -0.3] as [number, number, number], size: 0.048, phase: 0.0 },
+  { position: [-0.032, 0.238, -0.022] as [number, number, number], rotation: [-0.6, 1.3, 0.2] as [number, number, number], size: 0.042, phase: 0.9 },
+  { position: [0.031, 0.235, -0.018] as [number, number, number], rotation: [1.1, -0.7, 0.4] as [number, number, number], size: 0.045, phase: 1.8 },
+  { position: [-0.022, 0.244, 0.024] as [number, number, number], rotation: [0.5, 2.1, -0.8] as [number, number, number], size: 0.039, phase: 2.7 },
+  { position: [0.025, 0.246, 0.02] as [number, number, number], rotation: [-0.8, 0.6, 1.4] as [number, number, number], size: 0.043, phase: 3.6 },
+  { position: [0.003, 0.255, 0.002] as [number, number, number], rotation: [0.9, -1.1, 0.7] as [number, number, number], size: 0.051, phase: 4.5 },
+];
+
 // Modelo procedural de tenedor parrillero criollo visible y bien proporcionado en primera persona
 export const TenedorModel: React.FC = () => (
   <group position={[0, 0, 0]} rotation={[-0.85, -0.32, 0.25]} scale={[0.48, 0.48, 0.48]}>
@@ -118,7 +128,6 @@ export const PlayerTools: React.FC = () => {
   const toolActionTrigger = useAsadoStore((state) => state.toolActionTrigger);
   const triggerToolAction = useAsadoStore((state) => state.triggerToolAction);
   const interactFogon = useAsadoStore((state) => state.interactFogon);
-  const addNewRandomMeat = useAsadoStore((state) => state.addNewRandomMeat);
 
   const toolGroupRef = useRef<Group>(null);
 
@@ -148,9 +157,6 @@ export const PlayerTools: React.FC = () => {
         case 'f':
           interactFogon();
           break;
-        case 'm':
-          addNewRandomMeat();
-          break;
         case 'escape':
         case 'e':
           setSelectedTool('ninguna');
@@ -176,7 +182,7 @@ export const PlayerTools: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('pointerdown', handlePointerDown);
     };
-  }, [selectedTool, setSelectedTool, triggerToolAction, interactFogon, addNewRandomMeat]);
+  }, [selectedTool, setSelectedTool, triggerToolAction, interactFogon]);
 
   const currentPos = useRef(new Vector3(0.18, -0.09, -0.42));
   const targetPos = useRef(new Vector3());
@@ -302,22 +308,27 @@ export const PlayerTools: React.FC = () => {
                 url={PALA_ATIZADOR_URL}
                 spatialHalf="first"
                 targetSize={0.65}
-                rotation={[Math.PI, Math.PI, 0]}
+                rotation={[Math.PI, 0, 0]}
               />
             )}
           </SafeGLTF>
 
-          {/* Brasa auténtica carbon.glb anclada EXACTAMENTE adentro de la cuchara de la pala */}
+          {/* Clúster realista de 6 brasas incandescentes apiladas en la concavidad de la cuchara */}
           {carriedEmbersCount > 0 && (
-            <group position={[0, 0.24, 0.02]}>
-              <GlowingEmberModel
-                url={CARBON_URL}
-                targetSize={0.085}
-                burnProgress={1.0}
-                pulsePhase={0.5}
-                castShadow
-              />
-              <pointLight color="#ff4500" intensity={1.5} distance={1.2} />
+            <group>
+              {SHOVEL_EMBERS.map((ember, i) => (
+                <GlowingEmberModel
+                  key={`shovel-ember-${i}`}
+                  url={CARBON_URL}
+                  positionOffset={ember.position}
+                  rotationOffset={ember.rotation}
+                  targetSize={ember.size}
+                  burnProgress={1.0}
+                  pulsePhase={ember.phase}
+                  castShadow
+                />
+              ))}
+              <pointLight position={[0, 0.245, 0.01]} color="#ff4500" intensity={1.6} distance={1.3} />
             </group>
           )}
         </group>

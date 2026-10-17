@@ -56,9 +56,11 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const flipMeat = useAsadoStore((state) => state.flipMeat);
   const placingMeatId = useAsadoStore((state) => state.placingMeatId);
   const startPlacingMeat = useAsadoStore((state) => state.startPlacingMeat);
+  const finishPlacingMeat = useAsadoStore((state) => state.finishPlacingMeat);
   const triggerToolAction = useAsadoStore((state) => state.triggerToolAction);
 
   const isBeingPlaced = placingMeatId === meat.id;
+  const prevPlacedRef = useRef<boolean>(isBeingPlaced);
 
   const isChorizo = meat.cut.toLowerCase().includes('chorizo') || meat.cut.toLowerCase().includes('chori');
   const glbUrl = isChorizo ? MODEL_REGISTRY.CHORIZO.url : MODEL_REGISTRY.VACIO.url;
@@ -93,6 +95,27 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
     const overcooked = Math.min(1.0, meat.cookLevel - 1.0);
     return wellDone.clone().lerp(charred, overcooked * 0.9);
   }, [meat.cookLevel]);
+
+  // Al soltar la carne desde cualquier origen, neutralizar velocidades físicas y resetear cursor
+  useEffect(() => {
+    if (prevPlacedRef.current && !isBeingPlaced) {
+      if (rigidBodyRef.current) {
+        rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+      document.body.style.cursor = 'auto';
+    } else if (isBeingPlaced) {
+      document.body.style.cursor = 'grabbing';
+    }
+    prevPlacedRef.current = isBeingPlaced;
+  }, [isBeingPlaced]);
+
+  // Cleanup de cursor al desmontar
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = 'auto';
+    };
+  }, []);
 
   // Volteo de la carne sobre los fierros
   useEffect(() => {
@@ -154,19 +177,33 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
-    if (isBeingPlaced) return;
 
-    triggerToolAction();
-
-    if (e.button === 2 || e.shiftKey) {
-      startPlacingMeat(meat.id);
+    // Si ya está sostenida, soltar y asentar sobre la parrilla en el punto de clic
+    if (isBeingPlaced) {
+      if (rigidBodyRef.current) {
+        rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+      finishPlacingMeat(meat.id, [e.point.x, safeGrillY, e.point.z]);
+      document.body.style.cursor = 'auto';
       return;
     }
 
+    triggerToolAction();
+
+    // Atajo explícito con Shift o clic secundario
+    if (e.button === 2 || e.shiftKey) {
+      startPlacingMeat(meat.id);
+      document.body.style.cursor = 'grabbing';
+      return;
+    }
+
+    // Tenedor voltea el corte; cualquier otra herramienta o mano libre ('ninguna') agarra el corte
     if (selectedTool === 'tenedor') {
       flipMeat(meat.id);
     } else {
       startPlacingMeat(meat.id);
+      document.body.style.cursor = 'grabbing';
     }
   };
 
@@ -191,11 +228,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
         onPointerDown={handlePointerDown}
         onPointerOver={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
-          document.body.style.cursor = isBeingPlaced
-            ? 'grabbing'
-            : selectedTool === 'tenedor'
-            ? 'grab'
-            : 'move';
+          document.body.style.cursor = isBeingPlaced ? 'grabbing' : 'grab';
         }}
         onPointerOut={() => {
           if (!isBeingPlaced) {

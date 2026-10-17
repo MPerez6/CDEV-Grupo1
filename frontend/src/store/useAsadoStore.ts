@@ -44,6 +44,7 @@ export interface AsadoStore {
   meats: MeatItem[];
   addMeat: (meat: AddMeatInput) => void;
   addNewRandomMeat: () => void;
+  addNewMeat: (cutType: 'vacio' | 'chorizo') => void;
   updateCookLevel: (id: string, levelDelta: number) => void;
   flipMeat: (id: string) => void;
   setMeatPosition: (id: string, pos: [number, number, number]) => void;
@@ -163,16 +164,25 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     };
   }),
 
-  addNewRandomMeat: () => {
-    const cuts = ['Vacío Pampeano', 'Chorizo Criollo'];
-    const randomCut = cuts[Math.floor(Math.random() * cuts.length)];
-    const newId = generateUniqueMeatId('corte');
+  addNewMeat: (cutType: 'vacio' | 'chorizo') => {
+    const isVacio = cutType === 'vacio';
+    const cutName = isVacio ? 'Vacío Pampeano' : 'Chorizo Criollo';
+    const pos: [number, number, number] = isVacio ? [0, 0.42, 0] : [0, 0.40, 0];
+    const newId = generateUniqueMeatId(cutType);
     get().addMeat({
       id: newId,
-      cut: randomCut,
-      position: [0, 0.42, 0]
+      cut: cutName,
+      position: pos,
+      cookLevel: 0,
+      flipped: false
     });
     get().startPlacingMeat(newId);
+  },
+
+  addNewRandomMeat: () => {
+    const cuts: ('vacio' | 'chorizo')[] = ['vacio', 'chorizo'];
+    const randomCut = cuts[Math.floor(Math.random() * cuts.length)];
+    get().addNewMeat(randomCut);
   },
 
   updateCookLevel: (id, levelDelta) => set((state) => ({
@@ -399,7 +409,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     } else if (Array.isArray(xOrPos)) {
       px = xOrPos[0] ?? 0;
       pz = (xOrPos.length > 2 ? xOrPos[2] : xOrPos[1]) ?? 0;
-    } else if (typeof xOrPos === 'object' && xOrPos !== null) {
+    } else if (typeof xOrPos === 'object') {
       px = xOrPos.x ?? 0;
       pz = xOrPos.z ?? 0;
     }
@@ -411,24 +421,21 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
 
     let gridHeat = 0;
     if (cellX >= 0 && cellX < GRID_RES && cellZ >= 0 && cellZ < GRID_RES) {
-      const cellIdx = cellZ * GRID_RES + cellX;
-      const val = thermalGrid[cellIdx];
-      if (typeof val === 'number') {
-        gridHeat = val;
-      }
+      gridHeat = thermalGrid[cellZ * GRID_RES + cellX] ?? 0;
     }
 
-    let directHeat = 0;
+    let directEmberHeat = 0;
     for (const ember of embers) {
-      if (ember.temperature <= 0.01) continue;
+      if (ember.temperature <= 0.05) continue;
       const dx = px - ember.position[0];
       const dz = pz - ember.position[2];
       const distSq = dx * dx + dz * dz;
-      if (distSq < 0.25) {
-        directHeat += ember.temperature * Math.max(0, 1.0 - Math.sqrt(distSq) / 0.5);
+
+      if (distSq < 0.12) {
+        directEmberHeat += ember.temperature * (1.0 - distSq / 0.12);
       }
     }
 
-    return Math.min(3.0, gridHeat + directHeat);
+    return Math.min(2.5, gridHeat * 0.5 + directEmberHeat * 0.85);
   }
 }));

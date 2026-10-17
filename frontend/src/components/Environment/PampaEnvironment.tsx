@@ -4,7 +4,19 @@ import { RigidBody } from '@react-three/rapier';
 import { Object3D } from 'three';
 import { GLBModel } from '../Common/GLBModel';
 import { SafeGLTF } from '../Common/SafeModelLoader';
+import { PampeanGrass } from './PampeanGrass';
 import { MODEL_REGISTRY } from '../../config/modelRegistry';
+
+// Arboleda distante de llanura pampeana en el horizonte
+const DISTANT_TREES = [
+  { x: -24.0, z: -32.0, size: 7.2, rotY: 0.8 },
+  { x: -16.5, z: -22.0, size: 6.0, rotY: 2.1 },
+  { x: -8.0, z: -16.0, size: 5.4, rotY: 4.3 },
+  { x: 3.5, z: -27.0, size: 6.8, rotY: 1.2 },
+  { x: 12.0, z: -18.0, size: 5.8, rotY: 3.5 },
+  { x: 19.5, z: -25.0, size: 6.5, rotY: 5.1 },
+  { x: 26.0, z: -34.0, size: 7.4, rotY: 0.4 },
+];
 
 // Leñera criolla con leños apilados
 const WoodShed: React.FC = () => {
@@ -56,43 +68,6 @@ const WoodShed: React.FC = () => {
   );
 };
 
-// Campana y chimenea parrillera de mampostería y hierro criollo
-const ChimneyHood: React.FC = () => {
-  return (
-    <group position={[-0.1, 1.45, -0.15]}>
-      {/* Viga dintel frontal de quebracho macizo */}
-      <mesh position={[0, -0.05, 0.42]} castShadow receiveShadow>
-        <boxGeometry args={[2.2, 0.12, 0.12]} />
-        <meshStandardMaterial color="#382115" roughness={0.85} metalness={0.08} />
-      </mesh>
-
-      {/* Campana piramidal de ladrillo refractario y revoque criollo */}
-      <mesh position={[0, 0.35, 0.05]} castShadow receiveShadow>
-        <coneGeometry args={[1.15, 0.8, 4]} />
-        <meshStandardMaterial color="#5c3826" roughness={0.92} metalness={0.05} />
-      </mesh>
-
-      {/* Faldón perimetral de hierro negro */}
-      <mesh position={[0, -0.05, 0.05]} castShadow>
-        <boxGeometry args={[2.18, 0.06, 0.82]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.65} metalness={0.8} />
-      </mesh>
-
-      {/* Tiro de chimenea prismático hacia el cielo */}
-      <mesh position={[0, 1.15, 0.05]} castShadow receiveShadow>
-        <boxGeometry args={[0.48, 1.2, 0.48]} />
-        <meshStandardMaterial color="#683d29" roughness={0.9} metalness={0.05} />
-      </mesh>
-
-      {/* Sombrerete superior de chimenea */}
-      <mesh position={[0, 1.82, 0.05]} castShadow>
-        <boxGeometry args={[0.62, 0.06, 0.62]} />
-        <meshStandardMaterial color="#1e1e1e" roughness={0.6} metalness={0.85} />
-      </mesh>
-    </group>
-  );
-};
-
 // InstancedMesh de postes de quebracho para el alambrado pampeano
 const FencePostsInstanced: React.FC = () => {
   const postPositions = [-8, -6, -4, -2, 0, 2, 4, 6, 8];
@@ -124,13 +99,9 @@ const FencePostsInstanced: React.FC = () => {
 
 // Mesada rústica real utilizando 'Tabla.glb', con cuchillo y botella de vino perfectamente calibrados
 const MesadaRustica: React.FC = () => {
-  // Posición calibrada a la derecha de la parrilla
   const tableX = 0.95;
   const tableZ = 0.05;
 
-  // Parámetros de Tabla.glb (BBox: X 0.76m, Y 1.22m, Z 2.0m)
-  // Con targetSize 1.15m: scale = 0.575, altura total = 0.702m
-  // Center coloca el centro en Y=0, por lo que elevamos 0.351m para apoyar patas a nivel del suelo (y = 0)
   const targetSize = 1.15;
   const tableElevation = 0.351;
   const surfaceY = 0.702;
@@ -208,12 +179,11 @@ const MesadaRustica: React.FC = () => {
 };
 
 export const PampaEnvironment: React.FC = () => {
-  // Alturas de los 5 hilos de alambre galvanizado tradicional pampeano
   const wireHeights = [0.25, 0.5, 0.75, 1.0, 1.25];
 
   return (
     <group>
-      {/* Cielo pampeano de atardecer dorado */}
+      {/* Cielo pampeano de atardecer dorado despejado y abierto */}
       <Sky
         sunPosition={[35, 10, -50]}
         turbidity={8}
@@ -272,6 +242,9 @@ export const PampaEnvironment: React.FC = () => {
         />
       </mesh>
 
+      {/* Sistema denso de pasto procedural pampeano con balanceo orgánico */}
+      <PampeanGrass />
+
       {/* Pared rústica pampeana de ladrillo visto / quincho criollo de fondo */}
       <group position={[0, 1.2, -4.2]}>
         <mesh position={[0, 0, 0]} castShadow receiveShadow>
@@ -315,52 +288,57 @@ export const PampaEnvironment: React.FC = () => {
         ))}
       </group>
 
-      {/* Vegetación pampeana en el horizonte usando modelos reales */}
-      <group position={[-5.5, 0, -6.5]}>
+      {/* CEIBO DESTACADO (Flor Nacional Argentina) en el flanco visible de la llanura */}
+      <group position={[-6.2, 2.35, -2.5]} rotation={[0, 0.45, 0]}>
         <SafeGLTF
-          modelPath={MODEL_REGISTRY.ARBOLES.url}
+          modelPath={MODEL_REGISTRY.CEIBO.url}
           fallback={
-            <mesh position={[0, 2, 0]} castShadow>
-              <coneGeometry args={[1.2, 4, 8]} />
-              <meshStandardMaterial color="#2d4a1d" />
+            <mesh position={[0, 0, 0]} castShadow>
+              <cylinderGeometry args={[0.25, 0.4, 4.8, 8]} />
+              <meshStandardMaterial color="#4a2e18" />
             </mesh>
           }
         >
           {() => (
             <GLBModel
-              url={MODEL_REGISTRY.ARBOLES.url}
-              targetSize={5.5}
+              url={MODEL_REGISTRY.CEIBO.url}
+              targetSize={4.8}
               castShadow
+              receiveShadow
             />
           )}
         </SafeGLTF>
       </group>
 
-      <group position={[5.8, 0, -7.2]}>
-        <SafeGLTF
-          modelPath={MODEL_REGISTRY.ARBOLES.url}
-          fallback={
-            <mesh position={[0, 2, 0]} castShadow>
-              <coneGeometry args={[1.2, 4, 8]} />
-              <meshStandardMaterial color="#2d4a1d" />
-            </mesh>
-          }
+      {/* Arboleda pampeana lejana en el horizonte */}
+      {DISTANT_TREES.map((tree, idx) => (
+        <group
+          key={`distant-tree-${idx}`}
+          position={[tree.x, tree.size * 0.48, tree.z]}
+          rotation={[0, tree.rotY, 0]}
         >
-          {() => (
-            <GLBModel
-              url={MODEL_REGISTRY.ARBOLES.url}
-              targetSize={6.2}
-              castShadow
-            />
-          )}
-        </SafeGLTF>
-      </group>
+          <SafeGLTF
+            modelPath={MODEL_REGISTRY.ARBOLES.url}
+            fallback={
+              <mesh position={[0, 0, 0]} castShadow>
+                <coneGeometry args={[1.5, tree.size, 8]} />
+                <meshStandardMaterial color="#2d4a1d" />
+              </mesh>
+            }
+          >
+            {() => (
+              <GLBModel
+                url={MODEL_REGISTRY.ARBOLES.url}
+                targetSize={tree.size}
+                castShadow
+              />
+            )}
+          </SafeGLTF>
+        </group>
+      ))}
 
       {/* Leñera criolla con leños apilados */}
       <WoodShed />
-
-      {/* Campana y chimenea parrillera criolla */}
-      <ChimneyHood />
 
       {/* Mesada rústica derecha con Tabla.glb, cuchillo y botella de vino */}
       <MesadaRustica />
