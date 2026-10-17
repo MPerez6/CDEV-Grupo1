@@ -10,66 +10,66 @@ import { MODEL_REGISTRY } from '../../config/modelRegistry';
 const PALA_ATIZADOR_URL = MODEL_REGISTRY.PALA_Y_ATIZADOR.url;
 const CARBON_URL = MODEL_REGISTRY.CARBON.url;
 
-// Modelo procedural de tenedor parrillero criollo de gran presencia visual
+// Modelo procedural de tenedor parrillero criollo con presencia visual clara en primera persona
 export const TenedorModel: React.FC = () => (
-  <group rotation={[-0.82, -0.2, 0.22]} scale={[0.42, 0.42, 0.42]}>
-    {/* Mango de madera de quebracho lustrada */}
-    <mesh position={[0, -0.32, 0]} castShadow>
-      <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
-      <meshStandardMaterial color="#4d2c18" roughness={0.65} metalness={0.1} />
+  <group rotation={[-0.75, -0.22, 0.18]} scale={[0.46, 0.46, 0.46]}>
+    {/* Mango de quebracho rústico lustrado */}
+    <mesh position={[0, -0.28, 0]} castShadow>
+      <cylinderGeometry args={[0.022, 0.026, 0.36, 16]} />
+      <meshStandardMaterial color="#4a2a16" roughness={0.6} metalness={0.1} />
     </mesh>
 
     {/* Virola de latón / bronce parrillero */}
-    <mesh position={[0, -0.13, 0]} castShadow>
-      <cylinderGeometry args={[0.022, 0.022, 0.035, 16]} />
-      <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.8} />
+    <mesh position={[0, -0.09, 0]} castShadow>
+      <cylinderGeometry args={[0.024, 0.024, 0.038, 16]} />
+      <meshStandardMaterial color="#d4af37" roughness={0.3} metalness={0.85} />
     </mesh>
 
-    {/* Varilla larga de hierro forjado */}
-    <mesh position={[0, 0.24, 0]} castShadow>
-      <cylinderGeometry args={[0.009, 0.009, 0.72, 12]} />
-      <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
+    {/* Varilla larga de hierro forjado negro */}
+    <mesh position={[0, 0.28, 0]} castShadow>
+      <cylinderGeometry args={[0.01, 0.01, 0.74, 12]} />
+      <meshStandardMaterial color="#1e1e1e" roughness={0.38} metalness={0.88} />
     </mesh>
 
-    {/* Base bifurcada horizontal */}
-    <mesh position={[0, 0.6, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.009, 0.009, 0.12, 12]} />
-      <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
+    {/* Puente bifurcado horizontal */}
+    <mesh position={[0, 0.65, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+      <cylinderGeometry args={[0.01, 0.01, 0.14, 12]} />
+      <meshStandardMaterial color="#242424" roughness={0.35} metalness={0.88} />
     </mesh>
 
-    {/* Púa izquierda afilada */}
-    <mesh position={[-0.045, 0.74, 0]} castShadow>
-      <coneGeometry args={[0.008, 0.26, 8]} />
-      <meshStandardMaterial color="#404040" roughness={0.25} metalness={0.92} />
+    {/* Púa izquierda de acero */}
+    <mesh position={[-0.05, 0.79, 0]} castShadow>
+      <coneGeometry args={[0.009, 0.28, 8]} />
+      <meshStandardMaterial color="#555555" roughness={0.22} metalness={0.94} />
     </mesh>
 
-    {/* Púa derecha afilada */}
-    <mesh position={[0.045, 0.74, 0]} castShadow>
-      <coneGeometry args={[0.008, 0.26, 8]} />
-      <meshStandardMaterial color="#404040" roughness={0.25} metalness={0.92} />
+    {/* Púa derecha de acero */}
+    <mesh position={[0.05, 0.79, 0]} castShadow>
+      <coneGeometry args={[0.009, 0.28, 8]} />
+      <meshStandardMaterial color="#555555" roughness={0.22} metalness={0.94} />
     </mesh>
   </group>
 );
 
 // Fallback procedural de pala parrillera
 export const PalaProceduralModel: React.FC = () => (
-  <group rotation={[-0.82, -0.2, 0.22]} scale={[0.42, 0.42, 0.42]}>
-    <mesh position={[0, -0.32, 0]} castShadow>
-      <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
-      <meshStandardMaterial color="#4d2c18" roughness={0.65} metalness={0.1} />
+  <group rotation={[-0.75, -0.22, 0.18]} scale={[0.46, 0.46, 0.46]}>
+    <mesh position={[0, -0.28, 0]} castShadow>
+      <cylinderGeometry args={[0.022, 0.026, 0.36, 16]} />
+      <meshStandardMaterial color="#4a2a16" roughness={0.6} metalness={0.1} />
     </mesh>
-    <mesh position={[0, -0.13, 0]} castShadow>
-      <cylinderGeometry args={[0.022, 0.022, 0.035, 16]} />
+    <mesh position={[0, -0.09, 0]} castShadow>
+      <cylinderGeometry args={[0.024, 0.024, 0.038, 16]} />
       <meshStandardMaterial color="#888888" roughness={0.3} metalness={0.8} />
     </mesh>
-    <mesh position={[0, 0.26, 0]} castShadow>
-      <cylinderGeometry args={[0.009, 0.009, 0.76, 12]} />
-      <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
+    <mesh position={[0, 0.28, 0]} castShadow>
+      <cylinderGeometry args={[0.01, 0.01, 0.76, 12]} />
+      <meshStandardMaterial color="#1e1e1e" roughness={0.4} metalness={0.85} />
     </mesh>
-    <group position={[0, 0.7, 0.02]} rotation={[-0.22, 0, 0]}>
+    <group position={[0, 0.72, 0.02]} rotation={[-0.2, 0, 0]}>
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[0.2, 0.24, 0.008]} />
-        <meshStandardMaterial color="#1c1c1c" roughness={0.5} metalness={0.8} />
+        <boxGeometry args={[0.22, 0.25, 0.01]} />
+        <meshStandardMaterial color="#1c1c1c" roughness={0.5} metalness={0.82} />
       </mesh>
     </group>
   </group>
@@ -77,17 +77,17 @@ export const PalaProceduralModel: React.FC = () => (
 
 // Fallback procedural de atizador criollo
 export const AtizadorProceduralModel: React.FC = () => (
-  <group rotation={[-0.82, -0.2, 0.22]} scale={[0.42, 0.42, 0.42]}>
-    <mesh position={[0, -0.32, 0]} castShadow>
-      <cylinderGeometry args={[0.02, 0.024, 0.35, 16]} />
-      <meshStandardMaterial color="#4d2c18" roughness={0.65} metalness={0.1} />
+  <group rotation={[-0.75, -0.22, 0.18]} scale={[0.46, 0.46, 0.46]}>
+    <mesh position={[0, -0.28, 0]} castShadow>
+      <cylinderGeometry args={[0.022, 0.026, 0.36, 16]} />
+      <meshStandardMaterial color="#4a2a16" roughness={0.6} metalness={0.1} />
     </mesh>
-    <mesh position={[0, 0.28, 0]} castShadow>
-      <cylinderGeometry args={[0.009, 0.009, 0.82, 12]} />
-      <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
+    <mesh position={[0, 0.3, 0]} castShadow>
+      <cylinderGeometry args={[0.01, 0.01, 0.82, 12]} />
+      <meshStandardMaterial color="#1e1e1e" roughness={0.4} metalness={0.85} />
     </mesh>
-    <mesh position={[0.055, 0.69, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.009, 0.009, 0.12, 12]} />
+    <mesh position={[0.06, 0.72, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+      <cylinderGeometry args={[0.01, 0.01, 0.13, 12]} />
       <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.85} />
     </mesh>
   </group>
@@ -95,17 +95,17 @@ export const AtizadorProceduralModel: React.FC = () => (
 
 // Modelo procedural de cepillo parrillero
 export const CepilloModel: React.FC = () => (
-  <group rotation={[-0.82, -0.2, 0.22]} scale={[0.42, 0.42, 0.42]}>
-    <mesh position={[0, -0.25, 0]} castShadow>
-      <cylinderGeometry args={[0.016, 0.02, 0.4, 12]} />
+  <group rotation={[-0.75, -0.22, 0.18]} scale={[0.46, 0.46, 0.46]}>
+    <mesh position={[0, -0.22, 0]} castShadow>
+      <cylinderGeometry args={[0.018, 0.022, 0.42, 12]} />
       <meshStandardMaterial color="#553018" roughness={0.75} metalness={0.08} />
     </mesh>
-    <mesh position={[0, 0.06, 0]} castShadow>
-      <boxGeometry args={[0.08, 0.22, 0.045]} />
+    <mesh position={[0, 0.1, 0]} castShadow>
+      <boxGeometry args={[0.09, 0.24, 0.048]} />
       <meshStandardMaterial color="#3e2210" roughness={0.7} metalness={0.1} />
     </mesh>
-    <mesh position={[0, 0.06, 0.035]} castShadow>
-      <boxGeometry args={[0.07, 0.2, 0.028]} />
+    <mesh position={[0, 0.1, 0.038]} castShadow>
+      <boxGeometry args={[0.08, 0.22, 0.03]} />
       <meshStandardMaterial color="#c29c50" roughness={0.5} metalness={0.8} />
     </mesh>
   </group>
@@ -121,8 +121,6 @@ export const PlayerTools: React.FC = () => {
 
   const toolGroupRef = useRef<Group>(null);
 
-  // Atajos globales de teclado:
-  // C: Cepillo | P: Pala | A: Atizador | T: Tenedor | F: Fogón | M: Carne | ESC/E: Mano libre
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
@@ -166,7 +164,7 @@ export const PlayerTools: React.FC = () => {
     };
   }, [setSelectedTool, interactFogon, addNewRandomMeat]);
 
-  const currentPos = useRef(new Vector3(0.2, -0.12, -0.38));
+  const currentPos = useRef(new Vector3(0.2, -0.15, -0.48));
   const targetPos = useRef(new Vector3());
   const targetRot = useRef(new Quaternion());
   const eulerAux = useRef(new Euler());
@@ -183,7 +181,7 @@ export const PlayerTools: React.FC = () => {
     }
   }, [toolActionTrigger]);
 
-  // Animación viva en useFrame: respiración orgánica (sway) y respuesta reactiva a acciones
+  // Animación viva en useFrame: oscilación rústica continua (respiración / sway) y respuesta reactiva a acciones
   useFrame(({ camera, pointer, clock }, delta) => {
     if (!toolGroupRef.current) return;
 
@@ -195,10 +193,15 @@ export const PlayerTools: React.FC = () => {
 
     const t = clock.elapsedTime;
 
-    // Sway de respiración y movimiento armónico con el puntero
-    const swayX = Math.sin(t * 1.8) * 0.012 + pointer.x * 0.035;
-    const swayY = Math.cos(t * 2.2) * 0.014 - pointer.y * 0.028;
-    const swayZ = Math.sin(t * 1.4) * 0.009;
+    // Sway orgánico y perceptible de respiración del asador y respuesta dinámica al puntero
+    const swayX = Math.sin(t * 2.2) * 0.024 + pointer.x * 0.045;
+    const swayY = Math.cos(t * 2.6) * 0.02 - pointer.y * 0.038;
+    const swayZ = Math.sin(t * 1.8) * 0.016;
+
+    // Bobbing angular de la muñeca
+    const bobRotX = Math.sin(t * 2.2) * 0.035;
+    const bobRotY = Math.cos(t * 1.9) * 0.035;
+    const bobRotZ = Math.sin(t * 2.1) * 0.025;
 
     let actionOffsetX = 0;
     let actionOffsetY = 0;
@@ -209,7 +212,7 @@ export const PlayerTools: React.FC = () => {
 
     // Feedback táctil activo cuando el asador pincha, recoge brasas o cepilla
     if (isActing.current) {
-      actionProgress.current += delta * 5.2;
+      actionProgress.current += delta * 5.5;
       if (actionProgress.current >= 1.0) {
         actionProgress.current = 1.0;
         isActing.current = false;
@@ -221,24 +224,24 @@ export const PlayerTools: React.FC = () => {
         case 'tenedor':
           actionOffsetZ = -0.18 * pulse;
           actionOffsetY = -0.05 * pulse;
-          actionRotX = -0.32 * pulse;
-          actionRotZ = 0.5 * pulse;
+          actionRotX = -0.35 * pulse;
+          actionRotZ = 0.52 * pulse;
           break;
         case 'pala':
-          actionOffsetY = -0.11 * pulse;
-          actionOffsetZ = -0.14 * pulse;
-          actionRotX = 0.38 * pulse;
+          actionOffsetY = -0.12 * pulse;
+          actionOffsetZ = -0.15 * pulse;
+          actionRotX = 0.42 * pulse;
           break;
         case 'atizador':
-          actionOffsetX = -0.15 * pulse;
+          actionOffsetX = -0.16 * pulse;
           actionOffsetY = -0.05 * pulse;
-          actionRotY = 0.48 * pulse;
+          actionRotY = 0.5 * pulse;
           break;
         case 'cepillo': {
           const scrubCycle = Math.sin(actionProgress.current * Math.PI * 4);
-          actionOffsetZ = -0.14 * pulse + scrubCycle * 0.035;
+          actionOffsetZ = -0.15 * pulse + scrubCycle * 0.04;
           actionOffsetY = -0.04 * pulse;
-          actionRotX = 0.28 * pulse;
+          actionRotX = 0.3 * pulse;
           break;
         }
         default:
@@ -246,11 +249,11 @@ export const PlayerTools: React.FC = () => {
       }
     }
 
-    // Posición visible en primera persona en la esquina inferior derecha
+    // Posición calibrada en primera persona para visualización clara y óptima dentro del FOV
     const baseOffset = new Vector3(
-      0.18 + swayX + actionOffsetX,
-      -0.12 + swayY + actionOffsetY,
-      -0.36 + swayZ + actionOffsetZ
+      0.21 + swayX + actionOffsetX,
+      -0.15 + swayY + actionOffsetY,
+      -0.48 + swayZ + actionOffsetZ
     );
 
     targetPos.current.copy(baseOffset);
@@ -260,9 +263,9 @@ export const PlayerTools: React.FC = () => {
     toolGroupRef.current.position.copy(currentPos.current);
 
     eulerAux.current.set(
-      camera.rotation.x + actionRotX + Math.sin(t * 1.5) * 0.015,
-      camera.rotation.y + actionRotY + Math.cos(t * 1.3) * 0.015,
-      camera.rotation.z + actionRotZ,
+      camera.rotation.x + actionRotX + bobRotX,
+      camera.rotation.y + actionRotY + bobRotY,
+      camera.rotation.z + actionRotZ + bobRotZ,
       camera.rotation.order
     );
     targetRot.current.setFromEuler(eulerAux.current);
@@ -275,7 +278,7 @@ export const PlayerTools: React.FC = () => {
       {selectedTool === 'tenedor' && <TenedorModel />}
 
       {selectedTool === 'pala' && (
-        <group rotation={[-0.82, -0.2, 0.22]}>
+        <group rotation={[-0.75, -0.22, 0.18]}>
           <SafeGLTF
             modelPath={PALA_ATIZADOR_URL}
             fallback={<PalaProceduralModel />}
@@ -290,7 +293,7 @@ export const PlayerTools: React.FC = () => {
             )}
           </SafeGLTF>
 
-          {/* Brasa incandescente carbon.glb anclada EXACTAMENTE adentro de la cuchara de la pala (x = 0) */}
+          {/* Brasa auténtica carbon.glb anclada EXACTAMENTE adentro de la cuchara de la pala (x = 0) */}
           {carriedEmbersCount > 0 && (
             <group position={[0, 0.22, 0.02]}>
               <GlowingEmberModel
@@ -307,7 +310,7 @@ export const PlayerTools: React.FC = () => {
       )}
 
       {selectedTool === 'atizador' && (
-        <group rotation={[-0.82, -0.2, 0.22]}>
+        <group rotation={[-0.75, -0.22, 0.18]}>
           <SafeGLTF
             modelPath={PALA_ATIZADOR_URL}
             fallback={<AtizadorProceduralModel />}
