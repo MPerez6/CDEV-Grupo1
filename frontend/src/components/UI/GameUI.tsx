@@ -35,6 +35,10 @@ export const GameUI: React.FC = () => {
           e.preventDefault();
           setShowMeatMenu(false);
         }
+        if (showLoreModal) {
+          e.preventDefault();
+          setShowLoreModal(false);
+        }
       }
     };
 
@@ -56,7 +60,7 @@ export const GameUI: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showMeatMenu]);
+  }, [showMeatMenu, showLoreModal]);
 
   interface KeyItem {
     key: string;
@@ -287,19 +291,21 @@ export const GameUI: React.FC = () => {
         </aside>
       )}
 
-      {/* Modal flotante de tradición criolla */}
+      {/* Modal flotante de tradición criolla con backdrop descartable */}
       {showLoreModal && (
-        <div style={styles.loreCard}>
-          <div style={styles.loreTitle}>TRADICIÓN DEL ASADO CRIOLLO</div>
-          <p style={styles.loreBody}>
-            El secreto del asado argentino reside en la paciencia y el respeto al fuego:
-            iniciar la leña en el fogonero lateral [F], curar los hierros con cepillo [C],
-            acarrear brasas vivas bajo la parrilla [P], desparramarlas con el atizador [A]
-            y dorar los cortes con tenedor [T] sin apurar la Reacción de Maillard.
-          </p>
-          <button style={styles.closeLoreBtn} onClick={() => setShowLoreModal(false)}>
-            Volver a la Parrilla
-          </button>
+        <div style={styles.loreBackdrop} onClick={() => setShowLoreModal(false)}>
+          <div style={styles.loreCard} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.loreTitle}>TRADICIÓN DEL ASADO CRIOLLO</div>
+            <p style={styles.loreBody}>
+              El secreto del asado argentino reside en la paciencia y el respeto al fuego:
+              iniciar la leña en el fogonero lateral [F], curar los hierros con cepillo [C],
+              acarrear brasas vivas bajo la parrilla [P], desparramarlas con el atizador [A]
+              y dorar los cortes con tenedor [T] sin apurar la Reacción de Maillard.
+            </p>
+            <button style={styles.closeLoreBtn} onClick={() => setShowLoreModal(false)}>
+              Volver a la Parrilla
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -526,21 +532,28 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'flex',
     alignItems: 'center'
   },
-  loreCard: {
+  loreBackdrop: {
     position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backdropFilter: 'blur(3px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     pointerEvents: 'auto',
+    zIndex: 40
+  },
+  loreCard: {
     backgroundColor: 'rgba(22, 14, 10, 0.95)',
-    backdropFilter: 'blur(12px)',
     border: '2px solid rgba(211, 84, 0, 0.6)',
     borderRadius: '12px',
     padding: '24px 28px',
     maxWidth: '480px',
     boxShadow: '0 12px 36px rgba(0, 0, 0, 0.75)',
-    textAlign: 'center',
-    zIndex: 40
+    textAlign: 'center'
   },
   loreTitle: {
     fontSize: '16px',

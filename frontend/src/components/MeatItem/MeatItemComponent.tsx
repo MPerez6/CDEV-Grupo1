@@ -66,30 +66,28 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const glbUrl = isChorizo ? MODEL_REGISTRY.CHORIZO.url : MODEL_REGISTRY.VACIO.url;
   const targetSize = isChorizo ? 0.22 : 0.38;
 
+  // Orientación transversal auténtica para reposar cruzando las varillas de la parrilla
+  const rotationY = isChorizo ? 0 : Math.PI / 2;
+
   // Calibración geométrica precisa: medio ancho (X), medio alto (Y) y medio largo (Z)
-  const colliderHalfX = isChorizo ? 0.04 : 0.085;
-  const colliderHalfY = isChorizo ? 0.018 : 0.046;
-  const colliderHalfZ = isChorizo ? 0.105 : 0.18;
+  const colliderHalfX = isChorizo ? 0.04 : 0.16;
+  const colliderHalfY = isChorizo ? 0.018 : 0.042;
+  const colliderHalfZ = isChorizo ? 0.105 : 0.09;
 
   // Altura de superficie de la parrilla (0.35m varillas + 0.015m colisionador = 0.365m)
-  // Como el modelo está centrado en [0, 0, 0], el centro debe estar en 0.365 + colliderHalfY
-  // para que la base del corte descanse perfectamente sobre los fierros sin incrustarse
   const safeGrillY = 0.365 + colliderHalfY;
 
   // Tinte de cocción dinámico que preserva la textura PBR del GLB (grasa, veteado y fibras)
   const cookTint = useMemo(() => {
-    // Crudo: #ffffff neutral para que la textura original se aprecie con todo su detalle, grasa blanca y carne roja fresca
     if (meat.cookLevel <= 0.05) {
       return new Color('#ffffff');
     }
 
     if (meat.cookLevel <= 1.0) {
-      // Sellado y dorado criollo parrillero a punto
       const grilledCrust = new Color('#c47a50');
       return new Color('#ffffff').lerp(grilledCrust, meat.cookLevel * 0.85);
     }
 
-    // De a punto hacia crocante / quemado
     const wellDone = new Color('#854224');
     const charred = new Color('#1c120c');
     const overcooked = Math.min(1.0, meat.cookLevel - 1.0);
@@ -157,7 +155,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
         currentY = translation.y;
         currentZ = translation.z;
 
-        // Anclaje seguro sobre la parrilla: no permitir que se hunda en los fierros
+        // Anclaje seguro sobre la parrilla
         if (currentY < safeGrillY - 0.015) {
           rigidBodyRef.current.setTranslation({ x: currentX, y: safeGrillY, z: currentZ }, true);
           rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -178,7 +176,6 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
 
-    // Si ya está sostenida, soltar y asentar sobre la parrilla en el punto de clic
     if (isBeingPlaced) {
       if (rigidBodyRef.current) {
         rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -191,14 +188,12 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
     triggerToolAction();
 
-    // Atajo explícito con Shift o clic secundario
     if (e.button === 2 || e.shiftKey) {
       startPlacingMeat(meat.id);
       document.body.style.cursor = 'grabbing';
       return;
     }
 
-    // Tenedor voltea el corte; cualquier otra herramienta o mano libre ('ninguna') agarra el corte
     if (selectedTool === 'tenedor') {
       flipMeat(meat.id);
     } else {
@@ -218,7 +213,6 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       position={[meat.position[0], Math.max(meat.position[1], safeGrillY), meat.position[2]]}
       canSleep={false}
     >
-      {/* Colisionador centrado simétrico que coincide exactamente con los límites visuales del corte */}
       <CuboidCollider
         args={[colliderHalfX, colliderHalfY, colliderHalfZ]}
         position={[0, 0, 0]}
@@ -245,6 +239,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
               url={glbUrl}
               targetSize={targetSize}
               tintColor={cookTint}
+              rotation={[0, rotationY, 0]}
               castShadow
               receiveShadow
             />
