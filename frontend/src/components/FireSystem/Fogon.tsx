@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { Group, Vector3, Color, InstancedMesh, Object3D } from 'three';
 import { Text } from '@react-three/drei';
 import { useAsadoStore } from '../../store/useAsadoStore';
+import { GlowingEmberModel } from '../Common/GlowingEmberModel';
+import { MODEL_REGISTRY } from '../../config/modelRegistry';
 
 // Partículas de llamas y chispas procedimentales para el fuego del brasero
 export const FireFlamesParticles: React.FC<{ progress: number }> = ({ progress }) => {
@@ -67,7 +69,7 @@ export const FireFlamesParticles: React.FC<{ progress: number }> = ({ progress }
   );
 };
 
-// Brasero y fogonero criollo 100% procedural (sin llamadas a useGLTF)
+// Brasero y fogonero criollo con lecho de carbón auténtico (carbon_fogonero.glb)
 export const Fogon: React.FC = () => {
   const fogonGroupRef = useRef<Group>(null);
   const fogonStage = useAsadoStore((state) => state.fogonStage);
@@ -111,6 +113,18 @@ export const Fogon: React.FC = () => {
     }
   };
 
+  const isLit = fogonStage === 'encendido' || fogonStage === 'brasas_listas';
+  const availableEmbers = fogonEmbersCount;
+
+  let burnProgress = 0.0;
+  if (!isLit && availableEmbers === 0) {
+    burnProgress = 0.0;
+  } else if (fogonStage === 'encendido') {
+    burnProgress = fogonProgress;
+  } else if (availableEmbers > 0 || fogonStage === 'brasas_listas') {
+    burnProgress = 1.0;
+  }
+
   const woodScale = 1.0 - fogonProgress * 0.45;
   const woodY = 0.22 - fogonProgress * 0.1;
   const woodColor =
@@ -137,7 +151,7 @@ export const Fogon: React.FC = () => {
         document.body.style.cursor = 'auto';
       }}
     >
-      {/* 1. Base refractaria donde caerán las brasas */}
+      {/* 1. Base refractaria donde cae y descansa el lecho de carbón */}
       <group position={[0, 0.02, 0]}>
         <mesh receiveShadow>
           <cylinderGeometry args={[0.34, 0.36, 0.04, 28]} />
@@ -150,7 +164,28 @@ export const Fogon: React.FC = () => {
         </mesh>
       </group>
 
-      {/* 2. Canasto de hierro criollo / fogonero de barrotes cilíndricos oscuros */}
+      {/* 2. Lecho auténtico de carbón del fogonero (carbon_fogonero.glb) */}
+      <group position={[0, 0.07, 0]}>
+        <GlowingEmberModel
+          url={MODEL_REGISTRY.CARBON_FOGONERO.url}
+          targetSize={0.44}
+          burnProgress={burnProgress}
+          pulsePhase={0}
+          castShadow
+          receiveShadow
+        />
+        {burnProgress > 0.05 && (
+          <pointLight
+            position={[0, 0.12, 0]}
+            color="#ff4400"
+            intensity={2.2 * burnProgress}
+            distance={2.4}
+            decay={2}
+          />
+        )}
+      </group>
+
+      {/* 3. Canasto de hierro criollo / fogonero de barrotes cilíndricos oscuros */}
       <group position={[0, 0.06, 0]}>
         {/* Aro inferior de hierro */}
         <mesh position={[0, 0.04, 0]} castShadow>
@@ -198,7 +233,7 @@ export const Fogon: React.FC = () => {
         )}
       </group>
 
-      {/* 3. Leños cruzados de quebracho colorado (madera rústica) */}
+      {/* 4. Leños cruzados de quebracho colorado (madera rústica para alimentar el fuego) */}
       <group position={[0, woodY + 0.06, 0]} scale={[woodScale, woodScale, woodScale]}>
         <mesh position={[-0.04, 0, 0.02]} rotation={[0.35, 0.25, 0.75]} castShadow>
           <cylinderGeometry args={[0.035, 0.04, 0.36, 10]} />
@@ -214,7 +249,7 @@ export const Fogon: React.FC = () => {
         </mesh>
       </group>
 
-      {/* 4. Papel y fósforo inicial */}
+      {/* 5. Papel y fósforo inicial */}
       {(fogonStage === 'con_papel' || (fogonStage === 'encendido' && fogonProgress < 0.25)) && (
         <group position={[0, 0.1, 0]}>
           <mesh rotation={[0.2, 0.5, 0.1]} castShadow>
@@ -228,40 +263,18 @@ export const Fogon: React.FC = () => {
         </group>
       )}
 
-      {/* 5. Llamas y resplandor de fuego activo */}
+      {/* 6. Llamas y resplandor de fuego activo */}
       {fogonStage === 'encendido' && (
         <>
           <FireFlamesParticles progress={fogonProgress} />
           <pointLight
-            position={[0, 0.32, 0]}
+            position={[0, 0.35, 0]}
             color="#ff5500"
-            intensity={2.6 * Math.min(1.0, 0.35 + fogonProgress)}
+            intensity={2.8 * Math.min(1.0, 0.35 + fogonProgress)}
             distance={3.5}
             decay={2}
           />
         </>
-      )}
-
-      {/* 6. Base con brasas vivas en el fogonero */}
-      {(fogonStage === 'brasas_listas' || fogonProgress > 0.6) && (
-        <group position={[0, 0.04, 0]}>
-          <pointLight
-            position={[0, 0.12, 0]}
-            color="#ff3300"
-            intensity={1.8}
-            distance={2.2}
-            decay={2}
-          />
-          <mesh position={[0, 0.02, 0]}>
-            <cylinderGeometry args={[0.22, 0.25, 0.06, 14]} />
-            <meshStandardMaterial
-              color="#ff2200"
-              emissive="#ff3300"
-              emissiveIntensity={0.85}
-              roughness={0.8}
-            />
-          </mesh>
-        </group>
       )}
 
       {/* Cartel flotante de guía sobre el fogonero */}

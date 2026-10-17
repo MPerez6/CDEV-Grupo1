@@ -3,9 +3,12 @@ import { useFrame } from '@react-three/fiber';
 import { Group, Vector3, Quaternion, Euler, MathUtils } from 'three';
 import { useAsadoStore } from '../../store/useAsadoStore';
 import { GLBModel } from '../Common/GLBModel';
+import { GlowingEmberModel } from '../Common/GlowingEmberModel';
 import { SafeGLTF } from '../Common/SafeModelLoader';
+import { MODEL_REGISTRY } from '../../config/modelRegistry';
 
-const PALA_ATIZADOR_URL = '/models/pala_y_atizador.glb';
+const PALA_ATIZADOR_URL = MODEL_REGISTRY.PALA_Y_ATIZADOR.url;
+const CARBON_URL = MODEL_REGISTRY.CARBON.url;
 
 // Modelo procedural de tenedor parrillero criollo de gran presencia visual
 export const TenedorModel: React.FC = () => (
@@ -193,9 +196,9 @@ export const PlayerTools: React.FC = () => {
     const t = clock.elapsedTime;
 
     // Sway de respiración y movimiento armónico con el puntero
-    const swayX = Math.sin(t * 1.8) * 0.008 + pointer.x * 0.025;
-    const swayY = Math.cos(t * 2.2) * 0.009 - pointer.y * 0.02;
-    const swayZ = Math.sin(t * 1.4) * 0.006;
+    const swayX = Math.sin(t * 1.8) * 0.012 + pointer.x * 0.035;
+    const swayY = Math.cos(t * 2.2) * 0.014 - pointer.y * 0.028;
+    const swayZ = Math.sin(t * 1.4) * 0.009;
 
     let actionOffsetX = 0;
     let actionOffsetY = 0;
@@ -216,26 +219,26 @@ export const PlayerTools: React.FC = () => {
 
       switch (selectedTool) {
         case 'tenedor':
-          actionOffsetZ = -0.16 * pulse;
-          actionOffsetY = -0.04 * pulse;
-          actionRotX = -0.28 * pulse;
-          actionRotZ = 0.45 * pulse;
+          actionOffsetZ = -0.18 * pulse;
+          actionOffsetY = -0.05 * pulse;
+          actionRotX = -0.32 * pulse;
+          actionRotZ = 0.5 * pulse;
           break;
         case 'pala':
-          actionOffsetY = -0.09 * pulse;
-          actionOffsetZ = -0.12 * pulse;
-          actionRotX = 0.32 * pulse;
+          actionOffsetY = -0.11 * pulse;
+          actionOffsetZ = -0.14 * pulse;
+          actionRotX = 0.38 * pulse;
           break;
         case 'atizador':
-          actionOffsetX = -0.12 * pulse;
-          actionOffsetY = -0.04 * pulse;
-          actionRotY = 0.42 * pulse;
+          actionOffsetX = -0.15 * pulse;
+          actionOffsetY = -0.05 * pulse;
+          actionRotY = 0.48 * pulse;
           break;
         case 'cepillo': {
           const scrubCycle = Math.sin(actionProgress.current * Math.PI * 4);
-          actionOffsetZ = -0.12 * pulse + scrubCycle * 0.03;
-          actionOffsetY = -0.03 * pulse;
-          actionRotX = 0.25 * pulse;
+          actionOffsetZ = -0.14 * pulse + scrubCycle * 0.035;
+          actionOffsetY = -0.04 * pulse;
+          actionRotX = 0.28 * pulse;
           break;
         }
         default:
@@ -257,8 +260,8 @@ export const PlayerTools: React.FC = () => {
     toolGroupRef.current.position.copy(currentPos.current);
 
     eulerAux.current.set(
-      camera.rotation.x + actionRotX + Math.sin(t * 1.5) * 0.012,
-      camera.rotation.y + actionRotY + Math.cos(t * 1.3) * 0.012,
+      camera.rotation.x + actionRotX + Math.sin(t * 1.5) * 0.015,
+      camera.rotation.y + actionRotY + Math.cos(t * 1.3) * 0.015,
       camera.rotation.z + actionRotZ,
       camera.rotation.order
     );
@@ -272,64 +275,53 @@ export const PlayerTools: React.FC = () => {
       {selectedTool === 'tenedor' && <TenedorModel />}
 
       {selectedTool === 'pala' && (
-        <group>
+        <group rotation={[-0.82, -0.2, 0.22]}>
           <SafeGLTF
             modelPath={PALA_ATIZADOR_URL}
             fallback={<PalaProceduralModel />}
           >
             {() => (
-              <group rotation={[-0.82, -0.2, 0.22]}>
-                <GLBModel
-                  url={PALA_ATIZADOR_URL}
-                  spatialHalf="first"
-                  targetSize={0.65}
-                />
-              </group>
+              <GLBModel
+                url={PALA_ATIZADOR_URL}
+                spatialHalf="first"
+                targetSize={0.65}
+                rotation={[Math.PI, Math.PI, 0]}
+              />
             )}
           </SafeGLTF>
 
-          {/* Brasas incandescentes visibles sobre la pala */}
+          {/* Brasa incandescente carbon.glb anclada EXACTAMENTE adentro de la cuchara de la pala (x = 0) */}
           {carriedEmbersCount > 0 && (
-            <group position={[0.08, 0.12, -0.2]}>
-              <pointLight color="#ff4400" intensity={2.0} distance={1.5} />
-              {Array.from({ length: Math.min(carriedEmbersCount, 6) }).map((_, i) => (
-                <mesh
-                  key={i}
-                  position={[
-                    (i % 3 - 1) * 0.045 + (i * 0.008),
-                    (i > 2 ? 0.03 : -0.03),
-                    0.01
-                  ]}
-                >
-                  <dodecahedronGeometry args={[0.022, 0]} />
-                  <meshStandardMaterial
-                    color="#ff2200"
-                    emissive="#ff5500"
-                    emissiveIntensity={1.8}
-                    roughness={0.7}
-                  />
-                </mesh>
-              ))}
+            <group position={[0, 0.22, 0.02]}>
+              <GlowingEmberModel
+                url={CARBON_URL}
+                targetSize={0.085}
+                burnProgress={1.0}
+                pulsePhase={0.5}
+                castShadow
+              />
+              <pointLight color="#ff4500" intensity={1.5} distance={1.2} />
             </group>
           )}
         </group>
       )}
 
       {selectedTool === 'atizador' && (
-        <SafeGLTF
-          modelPath={PALA_ATIZADOR_URL}
-          fallback={<AtizadorProceduralModel />}
-        >
-          {() => (
-            <group rotation={[-0.82, -0.2, 0.22]}>
+        <group rotation={[-0.82, -0.2, 0.22]}>
+          <SafeGLTF
+            modelPath={PALA_ATIZADOR_URL}
+            fallback={<AtizadorProceduralModel />}
+          >
+            {() => (
               <GLBModel
                 url={PALA_ATIZADOR_URL}
                 spatialHalf="second"
                 targetSize={0.65}
+                rotation={[Math.PI, 0, 0]}
               />
-            </group>
-          )}
-        </SafeGLTF>
+            )}
+          </SafeGLTF>
+        </group>
       )}
 
       {selectedTool === 'cepillo' && <CepilloModel />}

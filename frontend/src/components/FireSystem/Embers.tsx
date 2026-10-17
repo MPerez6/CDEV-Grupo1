@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useEffect } from 'react';
-import { InstancedMesh, Object3D, Color, DodecahedronGeometry, MeshStandardMaterial } from 'three';
+import React from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAsadoStore, EmberData } from '../../store/useAsadoStore';
+import { GlowingEmberModel } from '../Common/GlowingEmberModel';
+import { MODEL_REGISTRY } from '../../config/modelRegistry';
 
 // Función auxiliar para calcular transferencia de calor térmico usando la ley de inverso del cuadrado
 export const calculateHeatTransfer = (
@@ -27,93 +28,49 @@ export const calculateHeatTransfer = (
   return totalHeat;
 };
 
-// Colores de referencia para la incandescencia del fuego
-const hotColor = new Color('#ffcc22');   // Al rojo blanco/amarillento
-const warmColor = new Color('#ff4500');  // Naranja brasa viva
-const lowColor = new Color('#8b1a00');   // Rojo oscuro apagándose
-const ashColor = new Color('#242120');   // Ceniza fría
+interface SingleEmberProps {
+  ember: EmberData;
+  index: number;
+}
+
+const SingleEmber: React.FC<SingleEmberProps> = ({ ember, index }) => {
+  const pulsePhase = (index * 1.37) % (Math.PI * 2);
+
+  // Escala orgánica según temperatura y degradación
+  const emberScale = Math.max(0.65, 0.75 + ember.temperature * 0.35);
+
+  return (
+    <group position={ember.position}>
+      <GlowingEmberModel
+        url={MODEL_REGISTRY.CARBON.url}
+        targetSize={0.08}
+        burnProgress={ember.temperature}
+        pulsePhase={pulsePhase}
+        scale={emberScale}
+        castShadow
+        receiveShadow
+      />
+      {/* Luz puntual localizada en las brasas más calientes */}
+      {ember.temperature > 0.4 && (
+        <pointLight
+          position={[0, 0.035, 0]}
+          color="#ff3e00"
+          intensity={0.45 * ember.temperature}
+          distance={0.65}
+          decay={2}
+        />
+      )}
+    </group>
+  );
+};
 
 export const Embers: React.FC = () => {
-  const meshRef = useRef<InstancedMesh>(null);
   const embers = useAsadoStore((state) => state.embers);
   const decayThermalSystem = useAsadoStore((state) => state.decayThermalSystem);
 
-  const geometry = useMemo(() => new DodecahedronGeometry(1, 0), []);
-  const material = useMemo(
-    () =>
-      new MeshStandardMaterial({
-        color: '#ffffff',
-        roughness: 0.7,
-        metalness: 0.1,
-        toneMapped: false,
-      }),
-    []
-  );
-
-  useEffect(() => {
-    return () => {
-      geometry.dispose();
-      material.dispose();
-    };
-  }, [geometry, material]);
-
-  const dummy = useMemo(() => new Object3D(), []);
-  const tempColor = useMemo(() => new Color(), []);
-
-  // Fases aleatorias estables para dar pulsación orgánica independiente a cada brasa
-  const heatPhases = useMemo(() => {
-    return embers.map(() => Math.random() * Math.PI * 2);
-  }, [embers.length]);
-
-  useFrame((state, delta) => {
-    // Decaimiento del calor general
+  // Decaimiento del calor y refresco de la grilla térmica
+  useFrame((_, delta) => {
     decayThermalSystem(delta);
-
-    if (!meshRef.current || embers.length === 0) return;
-
-    const time = state.clock.elapsedTime;
-    meshRef.current.count = embers.length;
-
-    for (let i = 0; i < embers.length; i++) {
-      const ember = embers[i];
-      if (!ember) continue;
-
-      const phase = heatPhases[i] ?? 0;
-      const t = Math.max(0, Math.min(1, ember.temperature));
-
-      // Posicionamiento de la brasa bajo la parrilla
-      dummy.position.set(ember.position[0], ember.position[1], ember.position[2]);
-
-      // Pulsación térmica orgánica según la temperatura viva
-      const pulse = t > 0.05 ? Math.sin(time * 3.5 + phase) * 0.015 * t : 0;
-      const baseScale = t > 0.05 ? 0.08 * (0.6 + 0.4 * t) : 0.035; // Ceniza compacta al enfriarse
-      dummy.scale.setScalar(Math.max(0.02, baseScale + pulse));
-
-      // Rotación orgánica
-      dummy.rotation.set(phase, phase * 0.5, phase * 1.5);
-      dummy.updateMatrix();
-
-      meshRef.current.setMatrixAt(i, dummy.matrix);
-
-      // Color dinámico según la temperatura de la brasa viva
-      if (t > 0.7) {
-        const factor = (t - 0.7) / 0.3;
-        tempColor.copy(warmColor).lerp(hotColor, factor);
-      } else if (t > 0.25) {
-        const factor = (t - 0.25) / 0.45;
-        tempColor.copy(lowColor).lerp(warmColor, factor);
-      } else {
-        const factor = t / 0.25;
-        tempColor.copy(ashColor).lerp(lowColor, factor);
-      }
-
-      meshRef.current.setColorAt(i, tempColor);
-    }
-
-    meshRef.current.instanceMatrix.needsUpdate = true;
-    if (meshRef.current.instanceColor) {
-      meshRef.current.instanceColor.needsUpdate = true;
-    }
   });
 
   if (embers.length === 0) {
@@ -121,10 +78,10 @@ export const Embers: React.FC = () => {
   }
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      key={embers.length}
-      args={[geometry, material, embers.length]}
-    />
+    <group name="grill-embers-group">
+      {embers.map((ember, i) => (
+        <SingleEmber key={ember.id} ember={ember} index={i} />
+      ))}
+    </group>
   );
 };
