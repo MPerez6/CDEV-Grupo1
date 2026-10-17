@@ -72,10 +72,10 @@ export const GameUI: React.FC = () => {
   const mainShortcuts: KeyItem[] = [
     {
       key: 'F',
-      label: 'Fogón',
+      label: fogonStage === 'brasas_listas' && fogonEmbersCount === 0 ? 'Carbón' : 'Fogón',
       icon: '🔥',
       action: interactFogon,
-      badge: fogonStage === 'brasas_listas' ? fogonEmbersCount : undefined,
+      badge: fogonStage === 'brasas_listas' && fogonEmbersCount > 0 ? fogonEmbersCount : undefined,
     },
     {
       key: 'C',
@@ -158,7 +158,7 @@ export const GameUI: React.FC = () => {
         {/* Separador fino */}
         <div style={styles.verticalDivider} />
 
-        {/* Botón de información criolla (el botón Asentar fue eliminado definitivamente) */}
+        {/* Botón de información criolla */}
         <div style={styles.quickActionsGroup}>
           <button
             style={styles.infoPillBtn}
@@ -215,6 +215,8 @@ export const GameUI: React.FC = () => {
                 ? 'Papel Listo [F]'
                 : fogonStage === 'encendido'
                 ? `Ardiendo ${Math.round(fogonProgress * 100)}%`
+                : fogonEmbersCount === 0
+                ? '🪵 Fogón: Sin Brasas [F] Agregar Carbón'
                 : `Brasas: ${fogonEmbersCount}`}
             </strong>
           </div>
@@ -235,7 +237,9 @@ export const GameUI: React.FC = () => {
 
         {/* Consejo contextual criollo actualizado */}
         <div style={styles.subtextHint}>
-          {placingMeatId ? (
+          {fogonStage === 'brasas_listas' && fogonEmbersCount === 0 ? (
+            <span>🪵 <strong>Fogón: Sin Brasas:</strong> Presioná [F] o hacé clic para agregar carbón y leña fresca.</span>
+          ) : placingMeatId ? (
             <span>🥩 <strong>Acomodar:</strong> Hacé clic sobre la parrilla o sobre el corte para soltarlo en los fierros.</span>
           ) : selectedTool === 'tenedor' ? (
             <span>🍴 <strong>Tenedor [T]:</strong> Hacé clic en el corte para pinchar y dar vuelta. Shift+clic para mover.</span>
@@ -334,248 +338,231 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   keysGroup: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '6px'
+    gap: '8px',
+    alignItems: 'center'
   },
   hudKeyItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '4px 8px',
+    gap: '5px',
+    padding: '5px 10px',
+    backgroundColor: 'rgba(38, 22, 14, 0.65)',
+    border: '1px solid rgba(160, 80, 32, 0.35)',
     borderRadius: '6px',
-    backgroundColor: 'rgba(38, 24, 16, 0.65)',
-    border: '1px solid rgba(80, 48, 30, 0.6)',
-    color: '#d4c5b9',
-    fontSize: '11px',
-    fontWeight: 600,
     cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 600,
     userSelect: 'none',
     transition: 'all 0.15s ease'
   },
   hudKeyItemActive: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '4px 8px',
+    gap: '5px',
+    padding: '5px 10px',
+    backgroundColor: 'rgba(211, 84, 0, 0.4)',
+    border: '1px solid #d35400',
+    boxShadow: '0 0 10px rgba(211, 84, 0, 0.45)',
     borderRadius: '6px',
-    backgroundColor: '#873600',
-    border: '1px solid #f39c12',
-    color: '#ffffff',
-    fontSize: '11px',
-    fontWeight: 700,
     cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 700,
     userSelect: 'none',
-    boxShadow: '0 0 8px rgba(243, 156, 18, 0.5)'
+    transition: 'all 0.15s ease'
   },
   keyBadge: {
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     color: '#f39c12',
-    borderRadius: '4px',
-    padding: '1px 4px',
-    fontFamily: 'monospace',
-    fontSize: '10px',
+    fontSize: '11px',
     fontWeight: 700
   },
   keyIcon: {
-    fontSize: '12px'
+    fontSize: '14px'
   },
   keyName: {
-    letterSpacing: '0.2px'
+    letterSpacing: '0.3px'
   },
   carriedBadge: {
-    backgroundColor: '#e65100',
+    backgroundColor: '#e74c3c',
     color: '#ffffff',
-    borderRadius: '8px',
-    padding: '0 5px',
-    fontSize: '9px',
-    fontWeight: 800
+    fontSize: '11px',
+    fontWeight: 800,
+    borderRadius: '10px',
+    padding: '1px 6px',
+    marginLeft: '2px'
   },
   verticalDivider: {
     width: '1px',
-    height: '18px',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)'
+    height: '24px',
+    backgroundColor: 'rgba(160, 80, 32, 0.4)'
   },
   quickActionsGroup: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '6px'
+    alignItems: 'center'
   },
   infoPillBtn: {
-    backgroundColor: 'transparent',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(50, 30, 20, 0.7)',
+    border: '1px solid rgba(180, 100, 40, 0.4)',
     borderRadius: '6px',
-    padding: '3px 7px',
-    color: '#ffcc88',
+    color: '#f5efe6',
     cursor: 'pointer',
-    fontSize: '11px'
+    padding: '4px 8px',
+    fontSize: '14px'
   },
   meatSelectorPopover: {
     position: 'absolute',
-    top: 'calc(100% + 8px)',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: 'rgba(20, 13, 9, 0.94)',
+    top: '52px',
+    right: '0',
+    backgroundColor: 'rgba(22, 14, 10, 0.94)',
     backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(211, 84, 0, 0.55)',
+    border: '1px solid rgba(180, 80, 30, 0.55)',
     borderRadius: '8px',
-    padding: '8px',
+    padding: '10px',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.65)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
-    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.65), 0 0 12px rgba(230, 81, 0, 0.25)',
-    minWidth: '260px',
-    zIndex: 50
+    gap: '8px',
+    minWidth: '240px'
   },
   meatSelectorHeader: {
-    fontSize: '10px',
+    fontSize: '11px',
     fontWeight: 800,
+    color: '#d35400',
     letterSpacing: '0.8px',
-    color: '#f39c12',
-    padding: '2px 4px 6px 4px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-    textAlign: 'center'
+    paddingBottom: '4px',
+    borderBottom: '1px solid rgba(160, 80, 32, 0.25)'
   },
   meatSelectorOption: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '8px 10px',
+    backgroundColor: 'rgba(45, 25, 15, 0.6)',
+    border: '1px solid rgba(160, 80, 32, 0.3)',
     borderRadius: '6px',
-    backgroundColor: 'rgba(42, 26, 17, 0.75)',
-    border: '1px solid rgba(138, 70, 30, 0.45)',
+    padding: '8px 10px',
+    color: '#f5efe6',
     cursor: 'pointer',
-    textAlign: 'left',
-    transition: 'all 0.15s ease'
+    textAlign: 'left'
   },
   meatOptionTextCol: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '2px'
+    flexDirection: 'column'
   },
   meatOptionTitle: {
-    fontSize: '12px',
+    fontSize: '13px',
     fontWeight: 700,
-    color: '#f5efe6'
+    color: '#ffcba4'
   },
   meatOptionDesc: {
-    fontSize: '10px',
-    color: '#bcaaa4'
+    fontSize: '11px',
+    color: '#bda695'
   },
   bottomStatusBanner: {
     position: 'absolute',
-    bottom: '16px',
+    bottom: '14px',
     left: '50%',
     transform: 'translateX(-50%)',
-    backgroundColor: 'rgba(18, 12, 9, 0.82)',
-    backdropFilter: 'blur(6px)',
-    border: '1px solid rgba(138, 70, 30, 0.35)',
-    borderRadius: '8px',
-    padding: '6px 14px',
+    pointerEvents: 'auto',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '4px',
-    pointerEvents: 'auto',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
-    maxWidth: '90vw'
+    gap: '6px',
+    backgroundColor: 'rgba(18, 12, 9, 0.85)',
+    backdropFilter: 'blur(8px)',
+    border: '1px solid rgba(138, 70, 30, 0.4)',
+    borderRadius: '10px',
+    padding: '8px 18px',
+    boxShadow: '0 4px 18px rgba(0, 0, 0, 0.5)',
+    zIndex: 20
   },
   statusChipsRow: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    flexWrap: 'wrap',
-    justifyContent: 'center'
+    gap: '12px',
+    alignItems: 'center'
   },
   guideBadge: {
-    backgroundColor: 'rgba(38, 24, 16, 0.65)',
-    border: '1px solid rgba(80, 48, 30, 0.5)',
+    fontSize: '12px',
+    color: '#e6ded4',
+    backgroundColor: 'rgba(40, 25, 18, 0.65)',
+    padding: '3px 9px',
     borderRadius: '6px',
-    padding: '3px 8px',
-    fontSize: '11px',
-    color: '#d4c5b9'
+    border: '1px solid rgba(140, 70, 25, 0.3)'
   },
   guideBadgeHot: {
-    backgroundColor: 'rgba(138, 40, 10, 0.75)',
-    border: '1px solid #e65100',
+    fontSize: '12px',
+    color: '#ffeedd',
+    backgroundColor: 'rgba(180, 45, 15, 0.65)',
+    padding: '3px 9px',
     borderRadius: '6px',
-    padding: '3px 8px',
-    fontSize: '11px',
-    color: '#ffffff',
-    boxShadow: '0 0 6px rgba(230, 81, 0, 0.4)'
+    border: '1px solid rgba(255, 90, 30, 0.6)'
   },
   subtextHint: {
-    fontSize: '11px',
-    color: '#e0d5cb',
-    textAlign: 'center',
-    lineHeight: 1.3
+    fontSize: '12px',
+    color: '#ded1c1',
+    letterSpacing: '0.2px'
   },
   bottomMonitor: {
     position: 'absolute',
-    bottom: '16px',
-    left: '16px',
-    backgroundColor: 'rgba(18, 12, 9, 0.85)',
-    backdropFilter: 'blur(6px)',
+    bottom: '14px',
+    left: '14px',
+    pointerEvents: 'auto',
+    backgroundColor: 'rgba(18, 12, 9, 0.82)',
+    backdropFilter: 'blur(8px)',
     border: '1px solid rgba(138, 70, 30, 0.4)',
     borderRadius: '8px',
     padding: '8px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
-    fontSize: '11px',
-    pointerEvents: 'auto',
-    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)'
+    zIndex: 20,
+    fontSize: '12px'
   },
   monitorHeader: {
     fontWeight: 700,
-    color: '#f39c12',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-    paddingBottom: '3px',
+    color: '#e67e22',
+    fontSize: '12px',
     marginBottom: '2px'
   },
   monitorRow: {
     display: 'flex',
-    justifyContent: 'space-between',
-    gap: '12px'
+    alignItems: 'center'
   },
   loreCard: {
     position: 'absolute',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    backgroundColor: 'rgba(24, 16, 12, 0.96)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid rgba(211, 84, 0, 0.65)',
-    borderRadius: '12px',
-    padding: '24px',
-    maxWidth: '480px',
-    width: '90%',
-    textAlign: 'center',
     pointerEvents: 'auto',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7), 0 0 16px rgba(230, 81, 0, 0.3)',
-    zIndex: 100
+    backgroundColor: 'rgba(22, 14, 10, 0.95)',
+    backdropFilter: 'blur(12px)',
+    border: '2px solid rgba(211, 84, 0, 0.6)',
+    borderRadius: '12px',
+    padding: '24px 28px',
+    maxWidth: '480px',
+    boxShadow: '0 12px 36px rgba(0, 0, 0, 0.75)',
+    textAlign: 'center',
+    zIndex: 40
   },
   loreTitle: {
-    fontSize: '15px',
+    fontSize: '16px',
     fontWeight: 800,
+    color: '#e67e22',
     letterSpacing: '1px',
-    color: '#f39c12',
     marginBottom: '12px'
   },
   loreBody: {
-    fontSize: '12px',
+    fontSize: '13px',
     lineHeight: '1.6',
-    color: '#e5d7cc',
-    marginBottom: '16px'
+    color: '#ded3c3',
+    marginBottom: '18px'
   },
   closeLoreBtn: {
-    backgroundColor: '#b8441c',
+    backgroundColor: '#d35400',
     color: '#ffffff',
     border: 'none',
     borderRadius: '6px',
-    padding: '8px 18px',
-    fontSize: '12px',
+    padding: '8px 16px',
     fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4)'
+    fontSize: '13px',
+    cursor: 'pointer'
   }
 };

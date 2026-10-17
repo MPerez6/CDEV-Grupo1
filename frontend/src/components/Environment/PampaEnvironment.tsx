@@ -195,7 +195,7 @@ export const PampaEnvironment: React.FC = () => {
       {/* Luz solar dorada de la pampa */}
       <directionalLight
         position={[25, 20, 15]}
-        intensity={1.8}
+        intensity={2.0}
         color="#ffb35e"
         castShadow
         shadow-mapSize-width={2048}
@@ -209,8 +209,17 @@ export const PampaEnvironment: React.FC = () => {
       />
 
       {/* Luz ambiental cálida reflejada de la tierra y el horizonte */}
-      <ambientLight intensity={0.55} color="#ffe5cc" />
-      <directionalLight position={[-20, 10, -20]} intensity={0.4} color="#7f8ea6" />
+      <ambientLight intensity={0.72} color="#ffe8d6" />
+      <directionalLight position={[-20, 10, -20]} intensity={0.45} color="#8a9ab2" />
+
+      {/* Luz cenital de quincho parrillero para iluminación clara de la parrilla y cortes */}
+      <pointLight
+        position={[0, 2.2, 0.2]}
+        color="#fff5e8"
+        intensity={1.6}
+        distance={6.0}
+        decay={1.8}
+      />
 
       {/* Plano de suelo pampeano con pasto de llanura y física fija */}
       <RigidBody type="fixed" friction={1.0}>
@@ -242,7 +251,7 @@ export const PampaEnvironment: React.FC = () => {
         />
       </mesh>
 
-      {/* Sistema denso de pasto procedural pampeano con balanceo orgánico */}
+      {/* Sistema denso de pasto procedural pampeano con balanceo orgánico y gradientes de vertex color */}
       <PampeanGrass />
 
       {/* Pared rústica pampeana de ladrillo visto / quincho criollo de fondo */}

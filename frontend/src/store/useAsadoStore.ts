@@ -76,6 +76,7 @@ export interface AsadoStore {
   carriedEmbersCount: number;
   colocarPapelYFosforo: () => void;
   encenderFogon: () => void;
+  recargarCarbonFogon: () => void;
   avanzarFogon: (delta: number) => void;
   tomarBrasasDelFogon: (amount?: number) => void;
   distribuirBrasasEnParrilla: (pos: [number, number, number]) => void;
@@ -266,6 +267,17 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     });
   },
 
+  recargarCarbonFogon: () => {
+    const { fogonStage, fogonEmbersCount, triggerToolAction } = get();
+    triggerToolAction();
+    if (fogonStage === 'brasas_listas' && fogonEmbersCount === 0) {
+      set({
+        fogonStage: 'encendido',
+        fogonProgress: 0.25,
+      });
+    }
+  },
+
   avanzarFogon: (delta: number) => {
     set((state) => {
       if (state.fogonStage !== 'encendido') return state;
@@ -273,10 +285,11 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
       const nextProgress = Math.min(1.0, state.fogonProgress + delta * 0.09);
 
       if (nextProgress >= 1.0) {
+        const newEmbers = Math.floor(35 + Math.random() * 11);
         return {
           fogonStage: 'brasas_listas',
           fogonProgress: 1.0,
-          fogonEmbersCount: Math.max(state.fogonEmbersCount, 40)
+          fogonEmbersCount: newEmbers
         };
       }
 
@@ -290,10 +303,17 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     if (state.fogonStage !== 'brasas_listas' || state.fogonEmbersCount <= 0) {
       return;
     }
-    const toTake = Math.min(amount, state.fogonEmbersCount);
+    const maxCapacity = 8;
+    const currentCarried = state.carriedEmbersCount;
+    const spaceLeft = Math.max(0, maxCapacity - currentCarried);
+    if (spaceLeft <= 0) return;
+
+    const toTake = Math.min(amount, state.fogonEmbersCount, spaceLeft);
+    if (toTake <= 0) return;
+
     set({
       fogonEmbersCount: state.fogonEmbersCount - toTake,
-      carriedEmbersCount: state.carriedEmbersCount + toTake
+      carriedEmbersCount: currentCarried + toTake
     });
   },
 
@@ -301,9 +321,9 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
     const { carriedEmbersCount, addEmbersAt, triggerToolAction } = get();
     triggerToolAction();
     if (carriedEmbersCount > 0) {
-      const toDistribute = Math.min(carriedEmbersCount, 6);
+      const toDistribute = carriedEmbersCount;
       addEmbersAt(pos, toDistribute);
-      set({ carriedEmbersCount: carriedEmbersCount - toDistribute });
+      set({ carriedEmbersCount: 0 });
     } else {
       const { fogonStage, fogonEmbersCount } = get();
       if (fogonStage === 'brasas_listas' && fogonEmbersCount > 0) {
@@ -315,15 +335,19 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   },
 
   interactFogon: () => {
-    const { fogonStage, colocarPapelYFosforo, encenderFogon, tomarBrasasDelFogon, setSelectedTool, triggerToolAction } = get();
+    const { fogonStage, fogonEmbersCount, colocarPapelYFosforo, encenderFogon, tomarBrasasDelFogon, recargarCarbonFogon, setSelectedTool, triggerToolAction } = get();
     triggerToolAction();
     if (fogonStage === 'sin_fuego') {
       colocarPapelYFosforo();
     } else if (fogonStage === 'con_papel') {
       encenderFogon();
     } else if (fogonStage === 'brasas_listas') {
-      setSelectedTool('pala');
-      tomarBrasasDelFogon(8);
+      if (fogonEmbersCount === 0) {
+        recargarCarbonFogon();
+      } else {
+        setSelectedTool('pala');
+        tomarBrasasDelFogon(8);
+      }
     }
   },
 
@@ -396,46 +420,31 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   ): number => {
     const { embers, thermalGrid } = get();
 
-    if (embers.length === 0 && thermalGrid.every((h) => h <= 0.001)) {
-      return 0.0;
-    }
+    if (embers.length === 0) return 0;
 
     let px = 0;
     let pz = 0;
-
     if (typeof xOrPos === 'number') {
       px = xOrPos;
-      pz = typeof yOrZ === 'number' && typeof optZ === 'number' ? optZ : (yOrZ ?? 0);
+      pz = typeof yOrZ === 'number' ? (optZ !== undefined ? optZ : yOrZ) : 0;
     } else if (Array.isArray(xOrPos)) {
-      px = xOrPos[0] ?? 0;
-      pz = (xOrPos.length > 2 ? xOrPos[2] : xOrPos[1]) ?? 0;
-    } else if (typeof xOrPos === 'object') {
-      px = xOrPos.x ?? 0;
-      pz = xOrPos.z ?? 0;
+      px = xOrPos[0];
+      pz = xOrPos.length === 3 ? xOrPos[2] : xOrPos[1];
+    } else if (xOrPos && typeof xOrPos === 'object') {
+      px = xOrPos.x;
+      pz = xOrPos.z;
     }
 
     const stepX = (GRID_BOUNDS.maxX - GRID_BOUNDS.minX) / GRID_RES;
     const stepZ = (GRID_BOUNDS.maxZ - GRID_BOUNDS.minZ) / GRID_RES;
+
     const cellX = Math.floor((px - GRID_BOUNDS.minX) / stepX);
     const cellZ = Math.floor((pz - GRID_BOUNDS.minZ) / stepZ);
 
-    let gridHeat = 0;
     if (cellX >= 0 && cellX < GRID_RES && cellZ >= 0 && cellZ < GRID_RES) {
-      gridHeat = thermalGrid[cellZ * GRID_RES + cellX] ?? 0;
+      const idx = cellZ * GRID_RES + cellX;
+      return thermalGrid[idx] ?? 0;
     }
-
-    let directEmberHeat = 0;
-    for (const ember of embers) {
-      if (ember.temperature <= 0.05) continue;
-      const dx = px - ember.position[0];
-      const dz = pz - ember.position[2];
-      const distSq = dx * dx + dz * dz;
-
-      if (distSq < 0.12) {
-        directEmberHeat += ember.temperature * (1.0 - distSq / 0.12);
-      }
-    }
-
-    return Math.min(2.5, gridHeat * 0.5 + directEmberHeat * 0.85);
+    return 0;
   }
 }));

@@ -80,11 +80,12 @@ export const Fogon: React.FC = () => {
   const setSelectedTool = useAsadoStore((state) => state.setSelectedTool);
   const colocarPapelYFosforo = useAsadoStore((state) => state.colocarPapelYFosforo);
   const encenderFogon = useAsadoStore((state) => state.encenderFogon);
+  const recargarCarbonFogon = useAsadoStore((state) => state.recargarCarbonFogon);
   const avanzarFogon = useAsadoStore((state) => state.avanzarFogon);
   const tomarBrasasDelFogon = useAsadoStore((state) => state.tomarBrasasDelFogon);
   const triggerToolAction = useAsadoStore((state) => state.triggerToolAction);
 
-  // Progresión de combustión
+  // Progresión de combustión activa
   useFrame((_, delta) => {
     if (fogonStage === 'encendido') {
       avanzarFogon(delta);
@@ -106,6 +107,10 @@ export const Fogon: React.FC = () => {
     }
 
     if (fogonStage === 'brasas_listas') {
+      if (fogonEmbersCount === 0) {
+        recargarCarbonFogon();
+        return;
+      }
       if (selectedTool !== 'pala' && selectedTool !== 'atizador') {
         setSelectedTool('pala');
       }
@@ -113,7 +118,7 @@ export const Fogon: React.FC = () => {
     }
   };
 
-  const isLit = fogonStage === 'encendido' || fogonStage === 'brasas_listas';
+  const isLit = fogonStage === 'encendido' || (fogonStage === 'brasas_listas' && fogonEmbersCount > 0);
   const availableEmbers = fogonEmbersCount;
 
   let burnProgress = 0.0;
@@ -121,7 +126,7 @@ export const Fogon: React.FC = () => {
     burnProgress = 0.0;
   } else if (fogonStage === 'encendido') {
     burnProgress = fogonProgress;
-  } else if (availableEmbers > 0 || fogonStage === 'brasas_listas') {
+  } else if (availableEmbers > 0) {
     burnProgress = 1.0;
   }
 
@@ -233,7 +238,7 @@ export const Fogon: React.FC = () => {
         )}
       </group>
 
-      {/* 4. Leños cruzados de quebracho colorado (madera rústica para alimentar el fuego) */}
+      {/* 4. Leños cruzados de quebracho colorado */}
       <group position={[0, woodY + 0.06, 0]} scale={[woodScale, woodScale, woodScale]}>
         <mesh position={[-0.04, 0, 0.02]} rotation={[0.35, 0.25, 0.75]} castShadow>
           <cylinderGeometry args={[0.035, 0.04, 0.36, 10]} />
@@ -301,6 +306,18 @@ export const Fogon: React.FC = () => {
             outlineColor="#000000"
           >
             🔥 Clic para Encender
+          </Text>
+        )}
+        {fogonStage === 'brasas_listas' && fogonEmbersCount === 0 && (
+          <Text
+            fontSize={0.055}
+            color="#ffaa55"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.004}
+            outlineColor="#000000"
+          >
+            [F] Agregar Carbón / Leña
           </Text>
         )}
         {fogonStage === 'brasas_listas' && fogonEmbersCount > 0 && (
