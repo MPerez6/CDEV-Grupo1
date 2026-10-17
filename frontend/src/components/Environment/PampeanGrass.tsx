@@ -4,68 +4,135 @@ import * as THREE from 'three';
 
 export const PampeanGrass: React.FC = () => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = 1200;
+  const count = 750;
 
-  // Geometría de bajo poligonaje: 3 planos verticales cruzados con tope cónico para forma de mata natural
-  const tuftGeometry = useMemo(() => {
+  // Mata achaparrada de paja brava / flechillar con volumen perimetral y base ensanchada
+  const tussockGeometry = useMemo(() => {
     const geom = new THREE.BufferGeometry();
-    const w = 0.15;
-    const h = 0.35;
 
     const positions: number[] = [];
     const normals: number[] = [];
     const uvs: number[] = [];
     const indices: number[] = [];
 
-    const angles = [0, Math.PI / 3, (2 * Math.PI) / 3];
     let vertOffset = 0;
 
-    angles.forEach((ang) => {
-      const cosA = Math.cos(ang) * (w / 2);
-      const sinA = Math.sin(ang) * (w / 2);
-      const nx = -Math.sin(ang);
-      const nz = Math.cos(ang);
+    // 1. Cinco planos radiales abombados en abanico (0° a 144°) para volumen perimetral 360°
+    const bladesAngles = [0, (Math.PI / 5), (2 * Math.PI / 5), (3 * Math.PI / 5), (4 * Math.PI / 5)];
 
-      // v0: inferior izquierda
-      positions.push(-cosA, 0, -sinA);
-      normals.push(nx, 0.2, nz);
-      uvs.push(0, 0);
+    bladesAngles.forEach((ang) => {
+      const cosA = Math.cos(ang);
+      const sinA = Math.sin(ang);
+      const perpX = -sinA;
+      const perpZ = cosA;
 
-      // v1: inferior derecha
-      positions.push(cosA, 0, sinA);
-      normals.push(nx, 0.2, nz);
-      uvs.push(1, 0);
+      // Dimensiones de perfil achaparrado con base ancha
+      const wBase = 0.44; // Ancho base en el suelo (0.44m)
+      const wMid = 0.58;  // Vientre abombado de la mata (0.58m)
+      const wTop = 0.34;  // Estrechamiento corona (0.34m)
 
-      // v2: superior derecha (estrechada al 65%)
-      positions.push(cosA * 0.65, h, sinA * 0.65);
-      normals.push(nx, 0.2, nz);
-      uvs.push(1, 1);
+      const y0 = 0.0;
+      const y1 = 0.18;
+      const y2 = 0.36;
+      const y3 = 0.45; // Puntas flechillar
 
-      // v3: superior izquierda (estrechada al 65%)
-      positions.push(-cosA * 0.65, h, -sinA * 0.65);
-      normals.push(nx, 0.2, nz);
-      uvs.push(0, 1);
+      // v0: base izquierda
+      positions.push(-cosA * (wBase * 0.5), y0, -sinA * (wBase * 0.5));
+      normals.push(perpX, 0.25, perpZ);
+      uvs.push(0.0, 0.0);
 
+      // v1: base derecha
+      positions.push(cosA * (wBase * 0.5), y0, sinA * (wBase * 0.5));
+      normals.push(perpX, 0.25, perpZ);
+      uvs.push(1.0, 0.0);
+
+      // v2: vientre izquierdo
+      positions.push(-cosA * (wMid * 0.5), y1, -sinA * (wMid * 0.5));
+      normals.push(perpX, 0.35, perpZ);
+      uvs.push(0.0, 0.4);
+
+      // v3: vientre derecho
+      positions.push(cosA * (wMid * 0.5), y1, sinA * (wMid * 0.5));
+      normals.push(perpX, 0.35, perpZ);
+      uvs.push(1.0, 0.4);
+
+      // v4: corona izquierda
+      positions.push(-cosA * (wTop * 0.5), y2, -sinA * (wTop * 0.5));
+      normals.push(perpX, 0.5, perpZ);
+      uvs.push(0.15, 0.8);
+
+      // v5: corona derecha
+      positions.push(cosA * (wTop * 0.5), y2, sinA * (wTop * 0.5));
+      normals.push(perpX, 0.5, perpZ);
+      uvs.push(0.85, 0.8);
+
+      // v6: punta del penacho
+      positions.push(0, y3, 0);
+      normals.push(perpX, 0.9, perpZ);
+      uvs.push(0.5, 1.0);
+
+      // Caras inferiores del abombamiento (v0, v1, v3) y (v0, v3, v2)
       indices.push(
-        vertOffset, vertOffset + 1, vertOffset + 2,
-        vertOffset, vertOffset + 2, vertOffset + 3
+        vertOffset, vertOffset + 1, vertOffset + 3,
+        vertOffset, vertOffset + 3, vertOffset + 2
       );
 
-      vertOffset += 4;
+      // Caras intermedias (v2, v3, v5) y (v2, v5, v4)
+      indices.push(
+        vertOffset + 2, vertOffset + 3, vertOffset + 5,
+        vertOffset + 2, vertOffset + 5, vertOffset + 4
+      );
+
+      // Cara superior triangular hacia la punta (v4, v5, v6)
+      indices.push(
+        vertOffset + 4, vertOffset + 5, vertOffset + 6
+      );
+
+      vertOffset += 7;
     });
+
+    // 2. Núcleo central bajo cónico (8 segmentos) para masa sólida en la raíz
+    const coreRadius = 0.22;
+    const coreHeight = 0.26;
+    const coreSegments = 8;
+    const apexIndex = vertOffset;
+
+    // Vértice cúspide del cono
+    positions.push(0, coreHeight, 0);
+    normals.push(0, 1, 0);
+    uvs.push(0.5, 0.5);
+    vertOffset++;
+
+    for (let s = 0; s < coreSegments; s++) {
+      const theta = (s / coreSegments) * Math.PI * 2;
+      const px = Math.cos(theta) * coreRadius;
+      const pz = Math.sin(theta) * coreRadius;
+
+      positions.push(px, 0, pz);
+      normals.push(px, 0.3, pz);
+      uvs.push(0.5 + px, 0.5 + pz);
+    }
+
+    for (let s = 0; s < coreSegments; s++) {
+      const curr = apexIndex + 1 + s;
+      const next = apexIndex + 1 + ((s + 1) % coreSegments);
+      indices.push(apexIndex, curr, next);
+    }
 
     geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geom.setIndex(indices);
+    geom.computeVertexNormals();
+
     return geom;
   }, []);
 
-  // Material pampeano con balanceo sutil por viento inyectado en el vertex shader
+  // Material pampeano con balanceo orgánico por viento
   const material = useMemo(() => {
     const mat = new THREE.MeshStandardMaterial({
       roughness: 0.9,
-      metalness: 0.05,
+      metalness: 0.04,
       side: THREE.DoubleSide,
     });
 
@@ -79,9 +146,9 @@ export const PampeanGrass: React.FC = () => {
         '#include <begin_vertex>',
         `
         #include <begin_vertex>
-        // Viento pampeano orgánico que mece la punta del pasto proporcional a la altura Y
+        // Viento pampeano que mece los penachos suavemente según altura Y
         vec4 wPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-        float sway = sin(uTime * 2.2 + wPos.x * 0.75 + wPos.z * 0.55) * 0.055 * (position.y / 0.35);
+        float sway = sin(uTime * 1.9 + wPos.x * 0.35 + wPos.z * 0.25) * 0.04 * clamp(position.y / 0.42, 0.0, 1.0);
         transformed.x += sway;
         transformed.z += sway * 0.6;
         `
@@ -92,54 +159,79 @@ export const PampeanGrass: React.FC = () => {
     return mat;
   }, []);
 
-  // Generación determinista de 1200 instancias distribuidas en el campo pampeano
+  // Distribución de matas agrupadas orgánicamente en el plano medio y lejano (radio 4.8m a 26m)
   const instancesData = useMemo(() => {
     const list: { pos: [number, number, number]; rotY: number; scale: [number, number, number]; color: THREE.Color }[] = [];
 
+    // Paleta de colores secos de campo requerida
     const pampeanPalette = [
-      new THREE.Color('#556832'), // Verde oliva seco
-      new THREE.Color('#7d7543'), // Pajonal dorado
-      new THREE.Color('#46542b'), // Verde gramilla
-      new THREE.Color('#646e38'), // Pastizal mixto
-      new THREE.Color('#8a7f49'), // Flechillar seco pampeano
+      new THREE.Color('#7d7543'), // Pajonal tostado
+      new THREE.Color('#556832'), // Verde oliva
+      new THREE.Color('#8a7f49'), // Flechillar seco
     ];
 
-    let seed = 739391;
+    let seed = 918273;
     const pseudoRand = () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
 
+    // Pre-generar 20 centros de cluster de matas en la pampa distante
+    const clusterCenters: { x: number; z: number }[] = [];
+    for (let c = 0; c < 20; c++) {
+      const cr = 6.0 + pseudoRand() * 18.0;
+      const cTheta = pseudoRand() * Math.PI * 2;
+      clusterCenters.push({
+        x: Math.cos(cTheta) * cr,
+        z: Math.sin(cTheta) * cr,
+      });
+    }
+
     let attempts = 0;
-    while (list.length < count && attempts < 8000) {
+    while (list.length < count && attempts < 9000) {
       attempts++;
-      // Distribución cuadrática para mayor densidad en las cercanías visibles (radio 1.9m a 20m)
-      const r = 1.9 + Math.sqrt(pseudoRand()) * 18.1;
-      const theta = pseudoRand() * Math.PI * 2;
-      const x = Math.cos(theta) * r;
-      const z = Math.sin(theta) * r;
 
-      // Exclusión estricta de la zona central de asado (x^2 + z^2 > 1.8^2)
-      if (x * x + z * z < 1.9 * 1.9) continue;
+      let x = 0;
+      let z = 0;
 
-      // Exclusión de la zona de la mesa rústica
-      if (x > 0.45 && x < 1.45 && z > -0.55 && z < 0.65) continue;
-      // Exclusión del nicho de la leñera
-      if (x > -1.75 && x < -0.95 && z > -0.75 && z < -0.15) continue;
-      // Exclusión del área del quincho / pared trasera
-      if (z > -4.5 && z < -3.9 && x > -7.2 && x < 7.2) continue;
+      // 65% agrupadas en matas / clusters pampeanos, 35% dispersas orgánicamente
+      if (pseudoRand() < 0.65) {
+        const center = clusterCenters[Math.floor(pseudoRand() * clusterCenters.length)];
+        const clusterOffsetR = Math.sqrt(pseudoRand()) * 2.8;
+        const clusterOffsetTheta = pseudoRand() * Math.PI * 2;
+        x = center.x + Math.cos(clusterOffsetTheta) * clusterOffsetR;
+        z = center.z + Math.sin(clusterOffsetTheta) * clusterOffsetR;
+      } else {
+        const r = 4.8 + Math.sqrt(pseudoRand()) * 21.2; // de 4.8m a 26m
+        const theta = pseudoRand() * Math.PI * 2;
+        x = Math.cos(theta) * r;
+        z = Math.sin(theta) * r;
+      }
+
+      // Zona de exclusión estricta central: NINGUNA mata a menos de 4.8m del centro
+      const distFromCenter = Math.hypot(x, z);
+      if (distFromCenter < 4.8 || distFromCenter > 26.5) {
+        continue;
+      }
+
+      // Exclusión del área de la pared trasera del quincho
+      if (z > -4.6 && z < -3.7 && Math.abs(x) < 7.5) {
+        continue;
+      }
 
       const rotY = pseudoRand() * Math.PI * 2;
-      const scaleX = 0.8 + pseudoRand() * 0.45;
-      const scaleY = 0.75 + pseudoRand() * 0.6;
-      const scaleZ = 0.8 + pseudoRand() * 0.45;
+      // Escala achaparrada con ancho entre 0.40m y 0.65m y altura entre 0.35m y 0.50m
+      const sBase = 0.9 + pseudoRand() * 0.45;
+      const scaleX = sBase * (0.95 + pseudoRand() * 0.15);
+      const scaleY = 0.85 + pseudoRand() * 0.32;
+      const scaleZ = sBase * (0.95 + pseudoRand() * 0.15);
 
       const baseColor = pampeanPalette[Math.floor(pseudoRand() * pampeanPalette.length)].clone();
       // Leve variación cromática orgánica por mata
       baseColor.offsetHSL(
-        (pseudoRand() - 0.5) * 0.04,
-        (pseudoRand() - 0.5) * 0.08,
-        (pseudoRand() - 0.5) * 0.06
+        (pseudoRand() - 0.5) * 0.035,
+        (pseudoRand() - 0.5) * 0.07,
+        (pseudoRand() - 0.5) * 0.05
       );
 
       list.push({
@@ -184,7 +276,7 @@ export const PampeanGrass: React.FC = () => {
   return (
     <instancedMesh
       ref={meshRef}
-      args={[tuftGeometry, material, instancesData.length]}
+      args={[tussockGeometry, material, instancesData.length]}
       castShadow
       receiveShadow
     />

@@ -40,7 +40,7 @@ const SingleEmber: React.FC<SingleEmberProps> = ({ ember, index }) => {
 
   return (
     <group position={ember.position}>
-      {/* Brasa procedural de quebracho sin cargar modelos GLB repetidos */}
+      {/* Brasa procedural de quebracho sin pointLight individual ni sombras GPU pesadas */}
       <GlowingEmberModel
         procedural={true}
         seed={index}
@@ -48,19 +48,9 @@ const SingleEmber: React.FC<SingleEmberProps> = ({ ember, index }) => {
         burnProgress={ember.temperature}
         pulsePhase={pulsePhase}
         scale={emberScale}
-        castShadow
-        receiveShadow
+        castShadow={false}
+        receiveShadow={false}
       />
-      {/* Luz puntual cálida parrillera atenuada sin saturar de rojo neón */}
-      {ember.temperature > 0.35 && (
-        <pointLight
-          position={[0, 0.04, 0]}
-          color="#ff5511"
-          intensity={0.28 * ember.temperature}
-          distance={0.55}
-          decay={2}
-        />
-      )}
     </group>
   );
 };
@@ -78,8 +68,21 @@ export const Embers: React.FC = () => {
     return null;
   }
 
+  // Luz puntual consolidada única para todas las brasas, evitando N pointLights dinámicas
+  const totalTemp = embers.reduce((acc, e) => acc + (e.temperature || 0), 0);
+  const consolidatedIntensity = Math.min(2.0, totalTemp * 0.25);
+
   return (
     <group name="grill-embers-group">
+      {consolidatedIntensity > 0.01 && (
+        <pointLight
+          position={[0, 0.08, 0]}
+          color="#ff4500"
+          intensity={consolidatedIntensity}
+          distance={1.8}
+          decay={2}
+        />
+      )}
       {embers.map((ember, i) => (
         <SingleEmber key={ember.id} ember={ember} index={i} />
       ))}
