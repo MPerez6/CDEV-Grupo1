@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
 import { RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier';
-import { Color, MeshStandardMaterial, Vector3, Quaternion } from 'three';
+import { Color, Vector3, Quaternion } from 'three';
 import { useAsadoStore, MeatItem } from '../../store/useAsadoStore';
 import { GLBModel } from '../Common/GLBModel';
 import { SafeGLTF } from '../Common/SafeModelLoader';
@@ -64,29 +64,35 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
   const glbUrl = isChorizo ? MODEL_REGISTRY.CHORIZO.url : MODEL_REGISTRY.VACIO.url;
   const targetSize = isChorizo ? 0.22 : 0.38;
 
-  const colliderHalfX = isChorizo ? 0.06 : 0.16;
-  const colliderHalfY = 0.025;
-  const colliderHalfZ = isChorizo ? 0.1 : 0.11;
+  // Calibración geométrica precisa: medio ancho (X), medio alto (Y) y medio largo (Z)
+  const colliderHalfX = isChorizo ? 0.04 : 0.085;
+  const colliderHalfY = isChorizo ? 0.018 : 0.046;
+  const colliderHalfZ = isChorizo ? 0.105 : 0.18;
 
-  // Material de cocción dinámico realista PBR
-  const cookMaterial = useMemo(() => {
-    const rawColor = new Color(isChorizo ? '#9e2e1c' : '#ba2626');
-    const crustColor = new Color('#75381a');
-    const burntColor = new Color('#1c1410');
+  // Altura de superficie de la parrilla (0.35m varillas + 0.015m colisionador = 0.365m)
+  // Como el modelo está centrado en [0, 0, 0], el centro debe estar en 0.365 + colliderHalfY
+  // para que la base del corte descanse perfectamente sobre los fierros sin incrustarse
+  const safeGrillY = 0.365 + colliderHalfY;
 
-    let currentColor = rawColor;
-    if (meat.cookLevel <= 1.0) {
-      currentColor = rawColor.clone().lerp(crustColor, meat.cookLevel);
-    } else {
-      currentColor = crustColor.clone().lerp(burntColor, Math.min(1, meat.cookLevel - 1.0));
+  // Tinte de cocción dinámico que preserva la textura PBR del GLB (grasa, veteado y fibras)
+  const cookTint = useMemo(() => {
+    // Crudo: #ffffff neutral para que la textura original se aprecie con todo su detalle, grasa blanca y carne roja fresca
+    if (meat.cookLevel <= 0.05) {
+      return new Color('#ffffff');
     }
 
-    return new MeshStandardMaterial({
-      color: currentColor,
-      roughness: 0.7 - Math.min(0.2, meat.cookLevel * 0.1),
-      metalness: 0.08,
-    });
-  }, [meat.cookLevel, isChorizo]);
+    if (meat.cookLevel <= 1.0) {
+      // Sellado y dorado criollo parrillero a punto
+      const grilledCrust = new Color('#c47a50');
+      return new Color('#ffffff').lerp(grilledCrust, meat.cookLevel * 0.85);
+    }
+
+    // De a punto hacia crocante / quemado
+    const wellDone = new Color('#854224');
+    const charred = new Color('#1c120c');
+    const overcooked = Math.min(1.0, meat.cookLevel - 1.0);
+    return wellDone.clone().lerp(charred, overcooked * 0.9);
+  }, [meat.cookLevel]);
 
   // Volteo de la carne sobre los fierros
   useEffect(() => {
@@ -104,16 +110,15 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
 
       const curPos = rigidBodyRef.current.translation();
       const safeX = !isNaN(curPos.x) ? curPos.x : meat.position[0];
-      const safeY = 0.385;
       const safeZ = !isNaN(curPos.z) ? curPos.z : meat.position[2];
-      rigidBodyRef.current.setTranslation({ x: safeX, y: safeY, z: safeZ }, true);
+      rigidBodyRef.current.setTranslation({ x: safeX, y: safeGrillY, z: safeZ }, true);
     }
-  }, [meat.flipped, isBeingPlaced, meat.position]);
+  }, [meat.flipped, isBeingPlaced, meat.position, safeGrillY]);
 
   useFrame((_state, delta) => {
     if (isBeingPlaced && rigidBodyRef.current) {
       rigidBodyRef.current.setNextKinematicTranslation(
-        new Vector3(meat.position[0], 0.385, meat.position[2])
+        new Vector3(meat.position[0], safeGrillY, meat.position[2])
       );
       return;
     }
@@ -129,9 +134,9 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
         currentY = translation.y;
         currentZ = translation.z;
 
-        // Anclaje seguro sobre la parrilla (0.35m altura de parrilla)
-        if (currentY < 0.36) {
-          rigidBodyRef.current.setTranslation({ x: currentX, y: 0.385, z: currentZ }, true);
+        // Anclaje seguro sobre la parrilla: no permitir que se hunda en los fierros
+        if (currentY < safeGrillY - 0.015) {
+          rigidBodyRef.current.setTranslation({ x: currentX, y: safeGrillY, z: currentZ }, true);
           rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
           rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
         }
@@ -173,12 +178,13 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
       friction={0.95}
       restitution={0.01}
       mass={1.5}
-      position={[meat.position[0], 0.385, meat.position[2]]}
+      position={[meat.position[0], Math.max(meat.position[1], safeGrillY), meat.position[2]]}
       canSleep={false}
     >
+      {/* Colisionador centrado simétrico que coincide exactamente con los límites visuales del corte */}
       <CuboidCollider
         args={[colliderHalfX, colliderHalfY, colliderHalfZ]}
-        position={[0, colliderHalfY, 0]}
+        position={[0, 0, 0]}
       />
 
       <group
@@ -205,7 +211,7 @@ export const MeatItemComponent: React.FC<Props> = ({ meat }) => {
             <GLBModel
               url={glbUrl}
               targetSize={targetSize}
-              customMaterial={cookMaterial}
+              tintColor={cookTint}
               castShadow
               receiveShadow
             />

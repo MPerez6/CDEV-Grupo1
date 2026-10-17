@@ -1,45 +1,34 @@
 from asador_harness import execute_objective
 
-hito_carbon_fogonero_pala_y_background = (
-    "OBJETIVO MAESTRO - Integración de 'carbon.glb' y 'carbon_fogonero.glb' con Transición a Glowing Ember Material, Corrección de Pala y Background Criollo:\n\n"
-    "FASE 1: AUDITORÍA DE ASSETS 3D EN PUBLIC/MODELS\n"
-    "1. Ejecuta OBLIGATORIAMENTE `inspect_3d_models()` para verificar las dimensiones, nodos y materiales de:\n"
-    "   - `/models/carbon.glb` (carbón individual para la pala y debajo de la parrilla)\n"
-    "   - `/models/carbon_fogonero.glb` (lecho/pila de carbón del fogonero)\n"
-    "   - `/models/cuchillo_en_madera.glb` y `/models/botella_de_vino_vieja.glb`\n"
-    "   - Y el resto de modelos presentes en `frontend/public/models/`.\n"
-    "2. Registra todas estas rutas exactas en `src/config/modelRegistry.ts`.\n\n"
-    "FASE 2: COMPONENTE `GlowingEmberModel.tsx` CON TRANSICIÓN DE CARBÓN APAGADO A BRASA COCINADA\n"
-    "1. Crea `src/components/Common/GlowingEmberModel.tsx` que reciba `url`, `targetSize`, `positionOffset`, `rotationOffset`, `burnProgress` (0.0 a 1.0) y `pulsePhase`.\n"
-    "2. Comportamiento del material (`MeshStandardMaterial` clonado):\n"
-    "   - Cuando `burnProgress === 0` (carbón crudo/apagado): conserva su aspecto oscuro original con `emissiveIntensity = 0`.\n"
-    "   - A medida que `burnProgress` avanza hacia `1.0` (carbón ya cocinado / hecho brasa): cambia al **Glowing Ember Material** (`emissive: new THREE.Color('#ff3800')`, usando `emissiveMap` o grietas incandescentes en `onBeforeCompile`) y anima `emissiveIntensity` en `useFrame` con un pulso térmico realista (`1.45 + Math.sin(t * 3.4) * 0.4`).\n\n"
-    "FASE 3: FOGONERO CON `/models/carbon_fogonero.glb` (`src/components/FireSystem/Fogon.tsx`)\n"
-    "1. En `Fogon.tsx`, elimina las esferas o dodecaedros viejos que representaban las brasas debajo del fogonero.\n"
-    "2. Renderiza `/models/carbon_fogonero.glb` mediante `GlowingEmberModel` ubicado en la base/interior del fogonero.\n"
-    "3. Conecta su prop `burnProgress` al estado del fogón:\n"
-    "   - Si el fogón está apagado y aún no hay brasas hechas (`!isLit && availableEmbers === 0`), `burnProgress = 0.0` (se ve como carbón apagado).\n"
-    "   - Mientras el fuego está prendido cocinando el carbón, `burnProgress` sube progresivamente.\n"
-    "   - Cuando el carbón ya está cocinado (`availableEmbers > 0`), `burnProgress = 1.0` para que todo `carbon_fogonero.glb` luzca con el Glowing Ember Material encendido al rojo vivo.\n\n"
-    "FASE 4: CORRECCIÓN TOTAL DE LA PALA Y USO DE `/models/carbon.glb` (`PlayerTools.tsx` y `Grill.tsx`)\n"
-    "1. En `src/components/Player/PlayerTools.tsx`:\n"
-    "   - Elimina por completo los 6 `<dodecahedronGeometry>` naranjas que salían flotando a la derecha de la pala.\n"
-    "   - Corrige la rotación de la pala para que la hoja metálica apunte hacia adelante (boca abierta lejos del jugador, parte trasera unida al mango) y el atizador tenga el mango hacia el jugador.\n"
-    "   - Cuando la pala tiene brasas cargadas (`shovelHasEmbers === true`), renderiza `/models/carbon.glb` usando `GlowingEmberModel` con `burnProgress={1.0}` (brasa encendida) anclado EXACTAMENTE adentro de la cuchara de la pala (`x = 0` centrado en la hoja, nunca desplazado hacia un costado), junto con un `<pointLight color='#ff4500' intensity={1.5} distance={1.2} />`.\n"
-    "2. En `src/components/Environment/Grill.tsx` (y sistema de brasas bajo la parrilla):\n"
-    "   - Mantén los fierros de la parrilla 100% procedurales con su `<CuboidCollider>` fijo para no romper el positioning de la carne.\n"
-    "   - Cada brasa depositada bajo la parrilla debe renderizar `/models/carbon.glb` con `GlowingEmberModel` (`burnProgress={1.0}` modulado por su calor actual `heat`), ubicándose exactamente en el `e.point` donde hizo clic el jugador.\n\n"
-    "FASE 5: DECORACIÓN COMPLETA DEL BACKGROUND CON CUCHILLO EN MADERA Y BOTELLA DE VINO\n"
-    "1. Crea o actualiza el background pampeano (muro de ladrillo criollo, campana/chimenea, vigas de quebracho, leñera e `InstancedMesh` de postes y árboles).\n"
-    "2. En la mesada rústica al costado derecho de la parrilla, coloca `/models/cuchillo_en_madera.glb` (`targetSize={0.44}`) y `/models/botella_de_vino_vieja.glb` (`targetSize={0.35}`) apoyados con precisión sobre la tabla superior.\n\n"
-    "FASE 6: VERIFICACIÓN DE BUILD, INSPECCIÓN EN NAVEGADOR Y PUSH\n"
-    "1. Ejecuta `run_tests()` (`npm run build`) y corrige cualquier error de TypeScript.\n"
-    "2. Ejecuta `inspect_running_game()` para verificar visualmente la escena sin errores de consola y haz push con `push_to_repository`."
+hito_tabla_glb_y_brasas_procedurales = (
+    "OBJETIVO: Integración de modelo 3D 'Tabla.glb', Calibración de Utensilios de Mesada y Brasas Procedurales Bajo la Parrilla:\n\n"
+    "1. AUDITORÍA Y REGISTRO DEL MODELO 'Tabla.glb' EN MODEL REGISTRY:\n"
+    "   - Ejecuta obligatoriamente `inspect_3d_models()` para inspeccionar `/models/Tabla.glb` (dimensiones, bounding box, nodos y materiales).\n"
+    "   - Registra `/models/Tabla.glb` en `src/config/modelRegistry.ts` bajo la clave `TABLA` con su metadata correspondiente (url: '/models/Tabla.glb', defaultTargetSize: ~1.1m a 1.2m).\n\n"
+    "2. REEMPLAZO DE LA MESADA PROCEDURAL POR 'Tabla.glb' (`src/components/Environment/PampaEnvironment.tsx`):\n"
+    "   - En el componente `MesadaRustica` (o sección de la mesada lateral en `PampaEnvironment.tsx`), ELIMINA la estructura procedural previa (patas de quebracho, travesaños y tapa superior generadas con `boxGeometry` de Three.js).\n"
+    "   - En su lugar, renderiza el modelo GLB real `/models/Tabla.glb` utilizando `SafeGLTF` y `GLBModel` (referenciado desde `MODEL_REGISTRY.TABLA.url`).\n"
+    "   - Ubica la mesa a la derecha de la parrilla (x ~ 0.95, z ~ 0.05), con una escala realista (targetSize aproximado entre 1.0m y 1.2m) apoyada firmemente a nivel del suelo (y = 0).\n\n"
+    "3. CALIBRACIÓN DE ALTURA Y ORIENTACIÓN DE UTENSILIOS SOBRE LA TABLA:\n"
+    "   - Determina la altura Y exacta de la superficie superior de `Tabla.glb`.\n"
+    "   - Ajusta los elementos apoyados sobre la tabla para que queden perfectamente alineados sin flotar ni incrustarse:\n"
+    "     a) `cuchillo_en_madera.glb`: Debe quedar apoyado con su base/bloque de madera descansando exactamente sobre la tabla (`y = alturaSuperficieTabla + offset`).\n"
+    "     b) `botella_de_vino_vieja.glb`: Debe quedar parada verticalmente sobre la tabla (ajusta su `rotation` si el modelo original viene acostado horizontalmente, ej. `rotation={[-Math.PI / 2, 0, 0]}` o `[0, 0, 0]` según corresponda a los ejes de su geometría) y con su base apoyada en la superficie de la mesa.\n\n"
+    "4. BRASAS PROCEDURALES MEJORADAS BAJO LA PARRILLA (`GlowingEmberModel.tsx` y `Grill.tsx`):\n"
+    "   - REGLA ESTRICTA: Las brasas debajo de la parrilla (`Grill.tsx`) DEBEN ser generadas PROCEDURALMENTE y TIENEN PROHIBIDO cargar modelos 3D `.glb` de carbón repetidos.\n"
+    "   - `GlowingEmberModel.tsx`: Soporta prop `procedural?: boolean`. Cuando es true, genera un clúster orgánico de 3 a 4 trozos de brasa de quebracho (`DodecahedronGeometry` achatados con deformación pseudo-aleatoria según `seed`).\n"
+    "   - Shader/Material: Corteza oscura de carbón (`#1a1412`) y ceniza grisácea (`#4a4442`) en caras superiores (`vLocalNormal.y > 0.2`), con incandescencia roja/naranja (`#b81400` a `#ff4500`) concentrada en fisuras/base y pulso suave térmico en `useFrame`.\n"
+    "   - En `Grill.tsx`, atenúa el `pointLight` rojo para dar iluminación cálida parrillera (`#ff5511`, intensidad moderada) sin saturar el suelo de rojo neón.\n"
+    "   - En `Fogon.tsx` mantén `/models/carbon_fogonero.glb` y en `PlayerTools.tsx` mantén `/models/carbon.glb` en la pala.\n\n"
+    "5. VERIFICACIÓN Y PUSH:\n"
+    "   - Ejecuta `run_tests()` (`npm run build`) y verifica que compile con 0 errores de TypeScript y Vite.\n"
+    "   - Ejecuta `inspect_running_game()` para validar visualmente la escena.\n"
+    "   - Haz commit y push al repositorio con `push_to_repository`."
 )
 
 if __name__ == "__main__":
-    exito = execute_objective(objective=hito_carbon_fogonero_pala_y_background, max_iterations=5)
+    exito = execute_objective(objective=hito_tabla_glb_y_brasas_procedurales, max_iterations=5)
     if exito:
-        print("\n[OK] ¡carbon.glb, carbon_fogonero.glb con transición térmica, pala corregida y background listos!")
+        print("\n[OK] ¡Modelo Tabla.glb integrado, utensilios calibrados y brasas procedurales listas!")
     else:
         print("\n[REVISAR] El harness finalizó con iteraciones pendientes.")

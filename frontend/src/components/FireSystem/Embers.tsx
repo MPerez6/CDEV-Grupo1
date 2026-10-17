@@ -2,7 +2,6 @@ import React from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAsadoStore, EmberData } from '../../store/useAsadoStore';
 import { GlowingEmberModel } from '../Common/GlowingEmberModel';
-import { MODEL_REGISTRY } from '../../config/modelRegistry';
 
 // Función auxiliar para calcular transferencia de calor térmico usando la ley de inverso del cuadrado
 export const calculateHeatTransfer = (
@@ -41,8 +40,10 @@ const SingleEmber: React.FC<SingleEmberProps> = ({ ember, index }) => {
 
   return (
     <group position={ember.position}>
+      {/* Brasa procedural de quebracho sin cargar modelos GLB repetidos */}
       <GlowingEmberModel
-        url={MODEL_REGISTRY.CARBON.url}
+        procedural={true}
+        seed={index}
         targetSize={0.08}
         burnProgress={ember.temperature}
         pulsePhase={pulsePhase}
@@ -50,13 +51,13 @@ const SingleEmber: React.FC<SingleEmberProps> = ({ ember, index }) => {
         castShadow
         receiveShadow
       />
-      {/* Luz puntual localizada en las brasas más calientes */}
-      {ember.temperature > 0.4 && (
+      {/* Luz puntual cálida parrillera atenuada sin saturar de rojo neón */}
+      {ember.temperature > 0.35 && (
         <pointLight
-          position={[0, 0.035, 0]}
-          color="#ff3e00"
-          intensity={0.45 * ember.temperature}
-          distance={0.65}
+          position={[0, 0.04, 0]}
+          color="#ff5511"
+          intensity={0.28 * ember.temperature}
+          distance={0.55}
           decay={2}
         />
       )}

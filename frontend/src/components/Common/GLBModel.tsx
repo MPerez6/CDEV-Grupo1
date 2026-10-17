@@ -7,6 +7,7 @@ export interface GLBModelProps {
   url: string;
   targetSize?: number; // Tamaño deseado en metros en su eje mayor (ej: 0.35 para carne, 0.65 para herramientas)
   customMaterial?: THREE.Material; // Para MaillardShader u otros shaders personalizados
+  tintColor?: THREE.Color; // Tinte que se mezcla con el material original preservando texturas
   nodeFilter?: string | ((name: string, obj: THREE.Object3D) => boolean);
   partIndex?: number;
   spatialHalf?: 'first' | 'second' | 'none'; // Separación espacial X de mallas combinadas (ej. pala vs atizador)
@@ -20,6 +21,7 @@ export const GLBModel: React.FC<GLBModelProps> = ({
   url,
   targetSize = 0.4,
   customMaterial,
+  tintColor,
   nodeFilter,
   partIndex,
   spatialHalf = 'none',
@@ -83,7 +85,22 @@ export const GLBModel: React.FC<GLBModelProps> = ({
         mesh.castShadow = castShadow;
         mesh.receiveShadow = receiveShadow;
         if (customMaterial) {
+          // Reemplazo total del material (modo legacy)
           mesh.material = customMaterial;
+        } else {
+          // Clonar materiales originales para que cada corte tenga su propia instancia preservando texturas PBR (grasa, relieve)
+          const origMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          const clonedMaterials = origMaterials.map((mat) => {
+            if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial) {
+              const cloned = mat.clone();
+              if (tintColor) {
+                cloned.color.copy(tintColor);
+              }
+              return cloned;
+            }
+            return mat;
+          });
+          mesh.material = clonedMaterials.length === 1 ? clonedMaterials[0] : clonedMaterials;
         }
       }
     });
@@ -103,6 +120,22 @@ export const GLBModel: React.FC<GLBModelProps> = ({
       finalDimensions: scaledSize,
     };
   }, [scene, targetSize, customMaterial, nodeFilter, partIndex, spatialHalf, castShadow, receiveShadow]);
+
+  // Actualización dinámica y ultra rápida del tinte sin re-clonar la escena
+  useEffect(() => {
+    if (!tintColor || customMaterial) return;
+    isolatedRoot.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((mat) => {
+          if ('color' in mat && mat.color instanceof THREE.Color) {
+            mat.color.copy(tintColor);
+          }
+        });
+      }
+    });
+  }, [isolatedRoot, tintColor, customMaterial]);
 
   useEffect(() => {
     inspectModel3D(url, isolatedRoot);

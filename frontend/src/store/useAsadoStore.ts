@@ -164,7 +164,7 @@ export const useAsadoStore = create<AsadoStore>((set, get) => ({
   }),
 
   addNewRandomMeat: () => {
-    const cuts = ['Vacío Pampeano', 'Chorizo Criollo', 'Tira de Asado Criolla', 'Choripán Gaucho'];
+    const cuts = ['Vacío Pampeano', 'Chorizo Criollo'];
     const randomCut = cuts[Math.floor(Math.random() * cuts.length)];
     const newId = generateUniqueMeatId('corte');
     get().addMeat({

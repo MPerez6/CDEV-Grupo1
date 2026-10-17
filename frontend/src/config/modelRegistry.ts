@@ -12,6 +12,13 @@ export interface ModelAssetInfo {
 }
 
 export const MODEL_REGISTRY = {
+  TABLA: {
+    url: '/models/Tabla.glb',
+    name: 'Mesa Rústica de Madera',
+    meshCount: 1,
+    description: 'Mesada rústica de madera para apoyo de utensilios y tabla de corte del asador',
+    defaultTargetSize: 1.15,
+  },
   CARBON: {
     url: '/models/carbon.glb',
     name: 'Carbón Individual',

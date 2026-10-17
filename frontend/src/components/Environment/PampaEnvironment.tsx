@@ -122,53 +122,36 @@ const FencePostsInstanced: React.FC = () => {
   );
 };
 
-// Mesada rústica de quebracho con tabla de corte, cuchillo y botella de vino
-const PrepTable: React.FC = () => {
-  const tableX = 0.98;
-  const tableY = 0.35;
-  const tableWidth = 0.62;
-  const tableDepth = 0.72;
-  const topThickness = 0.04;
+// Mesada rústica real utilizando 'Tabla.glb', con cuchillo y botella de vino perfectamente calibrados
+const MesadaRustica: React.FC = () => {
+  // Posición calibrada a la derecha de la parrilla
+  const tableX = 0.95;
+  const tableZ = 0.05;
+
+  // Parámetros de Tabla.glb (BBox: X 0.76m, Y 1.22m, Z 2.0m)
+  // Con targetSize 1.15m: scale = 0.575, altura total = 0.702m
+  // Center coloca el centro en Y=0, por lo que elevamos 0.351m para apoyar patas a nivel del suelo (y = 0)
+  const targetSize = 1.15;
+  const tableElevation = 0.351;
+  const surfaceY = 0.702;
 
   return (
-    <group position={[tableX, 0, 0]}>
-      {/* 4 Patas rústicas de quebracho */}
-      {[-tableWidth / 2 + 0.04, tableWidth / 2 - 0.04].map((px, i) =>
-        [-tableDepth / 2 + 0.04, tableDepth / 2 - 0.04].map((pz, j) => (
-          <mesh key={`tbl-leg-${i}-${j}`} position={[px, tableY / 2, pz]} castShadow receiveShadow>
-            <boxGeometry args={[0.055, tableY, 0.055]} />
-            <meshStandardMaterial color="#352015" roughness={0.85} metalness={0.08} />
-          </mesh>
-        ))
-      )}
-
-      {/* Travesaños inferiores de refuerzo */}
-      <mesh position={[0, 0.08, 0]} castShadow>
-        <boxGeometry args={[tableWidth - 0.04, 0.025, tableDepth - 0.04]} />
-        <meshStandardMaterial color="#321e13" roughness={0.9} metalness={0.05} />
-      </mesh>
-
-      {/* Tabla superior de quebracho macizo lustrado */}
-      <mesh position={[0, tableY + topThickness / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[tableWidth, topThickness, tableDepth]} />
-        <meshStandardMaterial color="#4a2e1d" roughness={0.7} metalness={0.12} />
-      </mesh>
-
-      {/* Cuchillo parrillero criollo clavado en madera (cuchillo_en_madera.glb) */}
-      <group position={[-0.04, tableY + topThickness + 0.01, 0.06]}>
+    <group position={[tableX, 0, tableZ]}>
+      {/* 1. Modelo 3D auténtico de la mesa rústica (Tabla.glb) apoyado a nivel del suelo */}
+      <group position={[0, tableElevation, 0]}>
         <SafeGLTF
-          modelPath={MODEL_REGISTRY.CUCHILLO_EN_MADERA.url}
+          modelPath={MODEL_REGISTRY.TABLA.url}
           fallback={
-            <mesh position={[0, 0.04, 0]} castShadow>
-              <boxGeometry args={[0.22, 0.02, 0.3]} />
-              <meshStandardMaterial color="#6a4228" roughness={0.8} />
+            <mesh position={[0, 0, 0]} castShadow receiveShadow>
+              <boxGeometry args={[0.5, 0.7, 1.0]} />
+              <meshStandardMaterial color="#352015" roughness={0.85} />
             </mesh>
           }
         >
           {() => (
             <GLBModel
-              url={MODEL_REGISTRY.CUCHILLO_EN_MADERA.url}
-              targetSize={0.44}
+              url={MODEL_REGISTRY.TABLA.url}
+              targetSize={targetSize}
               castShadow
               receiveShadow
             />
@@ -176,13 +159,35 @@ const PrepTable: React.FC = () => {
         </SafeGLTF>
       </group>
 
-      {/* Botella de vino vieja y añeja (botella_de_vino_vieja.glb) */}
-      <group position={[0.16, tableY + topThickness + 0.02, -0.16]}>
+      {/* 2. Cuchillo parrillero clavado en madera descansando con su base exactamente sobre la tabla */}
+      <group position={[-0.04, surfaceY + 0.034, 0.14]} rotation={[0, 0.35, 0]}>
+        <SafeGLTF
+          modelPath={MODEL_REGISTRY.CUCHILLO_EN_MADERA.url}
+          fallback={
+            <mesh position={[0, 0.02, 0]} castShadow>
+              <boxGeometry args={[0.22, 0.03, 0.3]} />
+              <meshStandardMaterial color="#6a4228" roughness={0.8} />
+            </mesh>
+          }
+        >
+          {() => (
+            <GLBModel
+              url={MODEL_REGISTRY.CUCHILLO_EN_MADERA.url}
+              targetSize={MODEL_REGISTRY.CUCHILLO_EN_MADERA.defaultTargetSize ?? 0.44}
+              castShadow
+              receiveShadow
+            />
+          )}
+        </SafeGLTF>
+      </group>
+
+      {/* 3. Botella de vino parada verticalmente con su base apoyada en la superficie de la mesa */}
+      <group position={[0.07, surfaceY + 0.175, -0.24]}>
         <SafeGLTF
           modelPath={MODEL_REGISTRY.BOTELLA_DE_VINO_VIEJA.url}
           fallback={
-            <mesh position={[0, 0.16, 0]} castShadow>
-              <cylinderGeometry args={[0.038, 0.04, 0.32, 16]} />
+            <mesh position={[0, 0, 0]} castShadow>
+              <cylinderGeometry args={[0.038, 0.04, 0.35, 16]} />
               <meshStandardMaterial color="#1f3b23" roughness={0.2} metalness={0.1} />
             </mesh>
           }
@@ -190,8 +195,8 @@ const PrepTable: React.FC = () => {
           {() => (
             <GLBModel
               url={MODEL_REGISTRY.BOTELLA_DE_VINO_VIEJA.url}
-              targetSize={0.35}
-              rotation={[-Math.PI / 2, 0, 0]}
+              targetSize={MODEL_REGISTRY.BOTELLA_DE_VINO_VIEJA.defaultTargetSize ?? 0.35}
+              rotation={[0, 0, 0]}
               castShadow
               receiveShadow
             />
@@ -357,8 +362,8 @@ export const PampaEnvironment: React.FC = () => {
       {/* Campana y chimenea parrillera criolla */}
       <ChimneyHood />
 
-      {/* Mesada rústica derecha con cuchillo y botella de vino */}
-      <PrepTable />
+      {/* Mesada rústica derecha con Tabla.glb, cuchillo y botella de vino */}
+      <MesadaRustica />
     </group>
   );
 };
