@@ -1,0 +1,22 @@
+:root { font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; color: #f9efe2; background: #201d1a; font-synthesis: none; }
+* { box-sizing: border-box; }
+html, body, #app { width:100%; height:100%; margin:0; overflow:hidden; }
+canvas { display:block; }
+#crosshair { position:fixed; top:50%; left:50%; width:9px; height:9px; border:2px solid rgba(255,255,255,.9); transform:translate(-50%,-50%); border-radius:100%; pointer-events:none; box-shadow:0 0 5px #1a1715; }
+#hud { position: fixed; z-index:5; left:18px; top:18px; background: rgba(28,24,21,.8); backdrop-filter:blur(9px); border:1px solid rgba(255,255,255,.16); border-radius:12px; padding:15px; max-width:440px; pointer-events:none; }
+#hud h2 { font-size:15px; margin:0 0 7px; letter-spacing:.02em; }
+#hud p { margin:3px 0; line-height:1.35; font-size:13px; }
+#hud .muted, .muted { color:#c9b9a4; }
+#target { position:fixed; z-index:5; bottom:72px; left:50%; transform:translateX(-50%); text-align:center; background:rgba(26,23,20,.78); border-radius:9px; padding:9px 16px; min-width:260px; font-size:14px; pointer-events:none; }
+#message { position:fixed; z-index:5; bottom:19px; left:50%; transform:translateX(-50%); max-width:75vw; white-space:normal; background:rgba(36,27,17,.92); padding:10px 16px; border-radius:9px; font-size:14px; text-align:center; pointer-events:none; }
+#debug { position:fixed; z-index:5; right:15px; top:18px; background:rgba(10,18,23,.89); font:12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; padding:13px; white-space:pre-line; border-radius:10px; max-width:350px; max-height:85vh; overflow:auto; pointer-events:none; }
+#reticle-help { position:fixed; bottom:5px; right:12px; font-size:11px; opacity:.7; pointer-events:none; }
+#overlay { position:fixed; z-index:9; inset:0; display:grid; place-items:center; background:rgba(17,17,16,.83); padding:20px; }
+#panel { width:min(580px,100%); background:#302822; border:1px solid #7c624a; border-radius:18px; padding:31px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+#panel h1 { font-size:27px; margin:0 0 9px; }
+#panel p { line-height:1.5; color:#eee0d1; }
+#panel ul { columns:2; padding-left:19px; line-height:1.9; font-size:14px; }
+button { cursor:pointer; background:#d6894d; color:#261d15; font-weight:800; border:0; padding:13px 25px; border-radius:9px; font-size:15px; }
+button:hover { background:#e9a56d; }
+kbd { padding:2px 5px; background:#54473b; border-radius:4px; font-family:inherit; }
+@media (max-width:600px){#hud{max-width:calc(100vw - 30px);left:12px;top:12px}#panel{padding:18px}#panel ul{columns:1}#debug{top:auto;bottom:126px;right:10px}}
