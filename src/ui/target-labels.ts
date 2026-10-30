@@ -8,7 +8,7 @@ export function targetName(kind: TargetKind, index?: number): string {
     'brazier': 'Brasero · 4 + clic para golpear',
     'tinder-pad': 'Papel debajo de la canasta · 1 + clic para encender',
     'tray': 'Brasas en la mesada bajo el brasero · 2 + clic para recoger',
-    'grill-cell': `Sector de parrilla ${index === undefined ? '?' : index + 1} · 2 + clic: brasas / 3 + clic: carne`,
+    'grill-cell': `Sector de parrilla ${index === undefined ? '?' : index + 1} · 2: brasas · 3: carne · 4 + clic: mover brasas`,
     'meat': 'Carne · E con pinza para recoger; R para dar vuelta o rodar; Q para orientar',
     'board': 'Mesa de preparación · E con pinza para devolver la pieza sostenida',
   };

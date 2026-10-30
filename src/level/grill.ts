@@ -37,6 +37,20 @@ export function createGrill(scene: THREE.Scene, clickable: THREE.Object3D[]) {
     scene.add(embers);
     coalMeshes.push(embers);
   }
+  // Plano continuo sobre el piso refractario y fondo bajo la parrilla para soltar brasas libremente con la pala.
+  const emberBedMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  const emberFloor = new THREE.Mesh(new THREE.BoxGeometry(width + 0.22, 0.024, depth + 0.28), emberBedMat);
+  emberFloor.position.set(left + width / 2, ASADOR_LAYOUT.hearthTop + 0.012, front - depth / 2 - 0.03);
+  emberFloor.userData.emberBed = true;
+  scene.add(emberFloor);
+  mark(emberFloor, 'grill-cell', clickable);
+
+  const emberBackstop = new THREE.Mesh(new THREE.BoxGeometry(width + 0.22, 0.31, 0.04), emberBedMat);
+  emberBackstop.position.set(left + width / 2, ASADOR_LAYOUT.hearthTop + 0.155, front - depth - 0.11);
+  emberBackstop.userData.emberBed = true;
+  scene.add(emberBackstop);
+  mark(emberBackstop, 'grill-cell', clickable);
+
   for(let i = 0;i <= 17;i++) box(scene, [0.025, 0.025, 2.10], [-1.26 + i * 0.148, 1.15, -4.55], 0x363b39, false);
   for(let i = 0;i < 9;i++) box(scene, [2.58, 0.021, 0.022], [0, 1.152, -5.51 + i * 0.24], 0x363b39, false);
   return { cellMeshes, coalMeshes, cellPosition };

@@ -12,7 +12,7 @@ export const HUD_TEMPLATE = `
     <li><kbd>1</kbd> Encendedor</li><li><kbd>2</kbd> Pala</li><li><kbd>3</kbd> Pinza</li>
     <li><kbd>4</kbd> Atizador</li><li><kbd>Clic</kbd> Usar herramienta</li>
     <li><kbd>R</kbd> Dar vuelta / rodar</li><li><kbd>Q</kbd> Orientar 90°</li><li><kbd>F3</kbd> Ver cálculos</li></ul>
-    <p class="muted">Los materiales están separados debajo de la mesada: leña gruesa, leña fina, carbón vegetal y papel/ramitas. Cargalos con E. Encendé el papel debajo del brasero izquierdo; las brasas listas caen sobre la mesada. Recogelas con la pala y llevalas a la parrilla derecha. Cuando quede espacio, podés reponer combustible: prende con el que siga caliente.</p>
+    <p class="muted">Los materiales están separados debajo de la mesada: leña gruesa, leña fina, carbón vegetal y papel/ramitas. Cargalos con E. Encendé el papel debajo del brasero izquierdo; las brasas listas caen sobre la mesada (o golpeá el brasero con el atizador). Recogelas con la pala y llevalas a la parrilla derecha; con el atizador (4) podés empujar, arrastrar y repartir las brasas bajo la parrilla según el ángulo del clic.</p>
     <p class="muted">Los cortes están en las tablas a la derecha. Con pinza (3), E para recoger; clic sobre la parrilla para colocar. R da vuelta los cortes y rueda media vuelta los embutidos. E sobre una tabla devuelve la pieza sostenida.</p>
     <button id="play">Entrar al patio</button>
   </div></div>

@@ -1,8 +1,20 @@
-import { BrazierModel, consumeEmber, HeatGrid, isFuelBurning, type DroppedPiece } from './embers.ts';
+import { BrazierModel, consumeEmber, HeatGrid, isFuelBurning, type DroppedPiece, type EmberPiece } from './embers.ts';
 import { MeatModel } from './meat.ts';
 import { CONFIG } from './parameters.ts';
 import { type MeatKind } from './meatCatalog.ts';
 import { footprintCoverage, polygonOverlapArea, meatFootprint } from './meatFootprint.ts';
+
+export type PokerStrikeInput = {
+  pointM: { x: number; z: number };
+  aimDir?: { x: number; z: number; pitchDown?: number };
+  dragDeltaM?: { x: number; z: number };
+};
+
+export type PokerStrikeResult = {
+  moved: number;
+  dirX: number;
+  dirZ: number;
+};
 
 export class SimulationWorld {
   public brazier = new BrazierModel();
@@ -105,12 +117,128 @@ export class SimulationWorld {
     this.message = 'Orientación girada 90°.';
     return true;
   }
-  depositEmber(index: number): boolean {
+  depositEmber(index: number, positionM?: { x: number; z: number }): boolean {
     if (this.carried?.state !== 'ready') { this.message = 'Primero recogé brasas rojas con la pala.'; return false; }
+    if (!Number.isInteger(index) || index < 0 || index >= this.grill.cells.length) return false;
+    if (positionM && Number.isFinite(positionM.x) && Number.isFinite(positionM.z)) {
+      this.carried.ember.positionM = {
+        x: Math.max(0, Math.min(CONFIG.grillWidthM, positionM.x)),
+        z: Math.max(0, Math.min(CONFIG.grillDepthM, positionM.z)),
+      };
+    }
     this.grill.put(index, this.carried.ember);
     this.carried = null;
     this.message = `Brasas colocadas en el sector ${index + 1}.`;
     return true;
+  }
+  pokeEmbers(input: PokerStrikeInput): PokerStrikeResult {
+    const { pointM, aimDir, dragDeltaM } = input;
+    if (!pointM || !Number.isFinite(pointM.x) || !Number.isFinite(pointM.z)) {
+      return { moved: 0, dirX: 0, dirZ: 0 };
+    }
+    if (this.grill.emberCount === 0) {
+      this.message = 'No hay brasas bajo la parrilla para mover.';
+      return { moved: 0, dirX: 0, dirZ: 0 };
+    }
+
+    const dragLen = dragDeltaM && Number.isFinite(dragDeltaM.x) && Number.isFinite(dragDeltaM.z)
+      ? Math.hypot(dragDeltaM.x, dragDeltaM.z)
+      : 0;
+    const hasDrag = dragLen > 1e-4;
+    const reachRadiusM = hasDrag ? 0.21 : 0.19;
+
+    const cellW = CONFIG.grillWidthM / CONFIG.gridColumns;
+    const cellD = CONFIG.grillDepthM / CONFIG.gridRows;
+    const candidates: { ember: EmberPiece; ex: number; ez: number; dist: number }[] = [];
+
+    this.grill.cells.forEach((cell, cellIndex) => {
+      const col = cellIndex % CONFIG.gridColumns;
+      const row = Math.floor(cellIndex / CONFIG.gridColumns);
+      const fallbackX = (col + 0.5) * cellW;
+      const fallbackZ = (row + 0.5) * cellD;
+      for (const ember of cell) {
+        if (ember.massG <= 0) continue;
+        const ex = ember.positionM ? ember.positionM.x : fallbackX;
+        const ez = ember.positionM ? ember.positionM.z : fallbackZ;
+        const dist = Math.hypot(ex - pointM.x, ez - pointM.z);
+        if (dist <= reachRadiusM) {
+          candidates.push({ ember, ex, ez, dist });
+        }
+      }
+    });
+
+    if (candidates.length === 0) {
+      this.message = 'Apuntá más cerca de las brasas para empujarlas o arrastrarlas con el atizador.';
+      return { moved: 0, dirX: 0, dirZ: 0 };
+    }
+
+    const axRaw = aimDir && Number.isFinite(aimDir.x) ? aimDir.x : 0;
+    const azRaw = aimDir && Number.isFinite(aimDir.z) ? aimDir.z : 1;
+    const aimLen = Math.hypot(axRaw, azRaw);
+    const ax = aimLen > 1e-5 ? axRaw / aimLen : 0;
+    const az = aimLen > 1e-5 ? azRaw / aimLen : 1;
+    const pitchDown = Math.max(0, Math.min(1, aimDir?.pitchDown !== undefined && Number.isFinite(aimDir.pitchDown) ? aimDir.pitchDown : 0.35));
+
+    const marginM = 0.025;
+    let sumDirX = 0;
+    let sumDirZ = 0;
+    let totalDisplacement = 0;
+    let lastSector = 0;
+
+    for (const { ember, ex, ez, dist } of candidates) {
+      let vx: number;
+      let vz: number;
+      let baseStep: number;
+
+      if (hasDrag && dragDeltaM) {
+        vx = dragDeltaM.x / dragLen;
+        vz = dragDeltaM.z / dragLen;
+        baseStep = Math.min(0.18, Math.max(0.065, dragLen));
+      } else {
+        const ux = dist > 1e-5 ? (ex - pointM.x) / dist : ax;
+        const uz = dist > 1e-5 ? (ez - pointM.z) / dist : az;
+        const w = Math.max(0, Math.min(1, (dist - 0.02) / 0.035));
+        const forwardFactor = Math.max(0, uz);
+        const rawX = ux * w + ax * (1 - w + 0.35 * w * forwardFactor);
+        const rawZ = uz * w + az * (1 - w);
+        const rawLen = Math.hypot(rawX, rawZ);
+        vx = rawLen > 1e-5 ? rawX / rawLen : ax;
+        vz = rawLen > 1e-5 ? rawZ / rawLen : az;
+        baseStep = 0.175 - 0.04 * pitchDown;
+      }
+
+      const stepM = baseStep * (1 - 0.25 * (dist / reachRadiusM));
+      const nx = Math.max(marginM, Math.min(CONFIG.grillWidthM - marginM, ex + vx * stepM));
+      const nz = Math.max(marginM, Math.min(CONFIG.grillDepthM - marginM, ez + vz * stepM));
+      const col = Math.max(0, Math.min(CONFIG.gridColumns - 1, Math.floor((nx / CONFIG.grillWidthM) * CONFIG.gridColumns)));
+      const row = Math.max(0, Math.min(CONFIG.gridRows - 1, Math.floor((nz / CONFIG.grillDepthM) * CONFIG.gridRows)));
+      const nextIndex = row * CONFIG.gridColumns + col;
+
+      totalDisplacement += Math.hypot(nx - ex, nz - ez);
+      ember.positionM = { x: nx, z: nz };
+      this.grill.put(nextIndex, ember);
+      sumDirX += vx;
+      sumDirZ += vz;
+      lastSector = nextIndex;
+    }
+
+    const avgLen = Math.hypot(sumDirX, sumDirZ) || 1;
+    const dirX = sumDirX / avgLen;
+    const dirZ = sumDirZ / avgLen;
+
+    if (totalDisplacement < 0.002) {
+      this.message = 'Las brasas ya están contra el borde en esa dirección.';
+      return { moved: candidates.length, dirX, dirZ };
+    }
+
+    const depthLabel = dirZ > 0.38 ? 'hacia el fondo' : dirZ < -0.38 ? 'hacia adelante' : '';
+    const sideLabel = dirX > 0.38 ? 'a la derecha' : dirX < -0.38 ? 'a la izquierda' : '';
+    const where = [depthLabel, sideLabel].filter(Boolean).join(' ') || 'en la parrilla';
+    const verb = dirZ < -0.38 ? 'Arrastraste' : dirZ > 0.38 ? 'Empujaste' : 'Barriste';
+    const sectorNote = candidates.length === 1 ? ` (sector ${lastSector + 1})` : '';
+    this.message = `${verb} ${candidates.length > 1 ? 'las brasas' : 'la brasa'} ${where}${sectorNote}.`;
+
+    return { moved: candidates.length, dirX, dirZ };
   }
   returnImmature(): boolean {
     if (!this.carried || this.carried.state !== 'immature') {

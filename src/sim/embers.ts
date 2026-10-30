@@ -6,6 +6,7 @@ export type EmberPiece = {
   initialMassG: number;
   massG: number;
   ashG: number;
+  positionM?: { x: number; z: number };
 };
 export type FuelPiece = {
   id: number;

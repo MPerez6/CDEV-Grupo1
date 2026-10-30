@@ -11,6 +11,51 @@ export function bindPrimaryAction(target: EventTarget, isPlaying: () => boolean,
   return () => target.removeEventListener('mousedown', onMouseDown);
 }
 
+/** Permite arrastrar brasas continuamente manteniendo presionado el clic izquierdo con el atizador. */
+export function bindPokerSweep(target: EventTarget, options: {
+  isPlaying: () => boolean;
+  gameplay: GameplayController;
+  getTarget: () => InteractionTarget | null;
+}): () => void {
+  const { isPlaying, gameplay, getTarget } = options;
+  let anchor: InteractionTarget | null = null;
+
+  const onMouseDown = (event: Event): void => {
+    if((event as MouseEvent).button !== 0 || !isPlaying() || gameplay.activeTool !== 3) {
+      anchor = null;
+      return;
+    }
+    const current = getTarget();
+    anchor = current?.kind === 'grill-cell' && current.emberPointM ? current : null;
+  };
+
+  const onMouseMove = (): void => {
+    if(!anchor || !anchor.emberPointM || !isPlaying() || gameplay.activeTool !== 3) {
+      anchor = null;
+      return;
+    }
+    const next = getTarget();
+    if(next?.kind !== 'grill-cell' || !next.emberPointM) return;
+    const dist = Math.hypot(next.emberPointM.x - anchor.emberPointM.x, next.emberPointM.z - anchor.emberPointM.z);
+    if(dist >= 0.075) {
+      gameplay.rakeEmbers(anchor, next);
+      anchor = next;
+    }
+  };
+
+  const clearAnchor = (): void => { anchor = null; };
+
+  target.addEventListener('mousedown', onMouseDown);
+  target.addEventListener('mousemove', onMouseMove);
+  target.addEventListener('mouseup', clearAnchor);
+  return () => {
+    target.removeEventListener('mousedown', onMouseDown);
+    target.removeEventListener('mousemove', onMouseMove);
+    target.removeEventListener('mouseup', clearAnchor);
+    anchor = null;
+  };
+}
+
 export function bindGameplayInput(target: EventTarget, options: {
   isPlaying: () => boolean; keys: Set<string>; gameplay: GameplayController;
   getTarget: () => InteractionTarget | null; toggleDebug: () => void;
