@@ -221,10 +221,13 @@ test('la carne recibe flujo por área y absorptividad, sin aplicar otra vez el 1
   // antiguo promedio fijo de cuatro sectores; se sigue comprobando la eficiencia una sola vez.
   for (let i = 0; i < 24; i++) world.grill.put(i, newEmber(50));
   world.tick(0.25);
-  const areaM2 = 1.5 / (1070 * 0.015);
+  const areaM2 = CONFIG.meatMassKg / (CONFIG.meatDensityKgM3 * CONFIG.meatThicknessM);
   const expectedMeanFlux = 4928;
-  const expectedAbsorbedJ = expectedMeanFlux * 0.6 * areaM2 * 0.25;
-  const storedJ = world.meat.layersC.reduce((sum, temperature) => sum + (temperature - 25) * (1.5 / 5) * 3800, 0);
+  const expectedAbsorbedJ = expectedMeanFlux * CONFIG.meatAbsorptivity * areaM2 * 0.25;
+  const storedJ = world.meat.layersC.reduce(
+    (sum, temperature) => sum + (temperature - 25) * (CONFIG.meatMassKg / CONFIG.meatLayerCount) * CONFIG.meatSpecificHeatJKgK,
+    0,
+  );
   near(storedJ, expectedAbsorbedJ);
   assert.equal(world.meat.layersC.length, 5);
 });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { MeatModel } from '../src/sim/meat.ts';
 import { MEAT_CATALOG, MEAT_KINDS, polygonArea } from '../src/sim/meatCatalog.ts';
+import { CONFIG } from '../src/sim/parameters.ts';
 import { footprintCoverage, meatFootprint } from '../src/sim/meatFootprint.ts';
 import { SimulationWorld } from '../src/sim/world.ts';
 import { newEmber } from '../src/sim/embers.ts';
@@ -87,7 +88,7 @@ test('la conducción conserva energía interna, descontando solo la convección 
     const convArea = d.geometry === 'flat' ? meat.dimensions.areaM2 * 0.35
       : (2 * Math.PI * r * meat.dimensions.widthM + 2 * Math.PI * r * r) * 0.675;
     meat.update(0.25, 0);
-    near(storedEnergy(meat) - before, -12 * convArea * 25 * 0.25);
+    near(storedEnergy(meat) - before, -CONFIG.meatSurfaceConvectionWm2K * convArea * 25 * 0.25);
     assert.ok(meat.layersC[2] > 30, 'el centro recibe más calor del que cede a la siguiente capa');
   }
 });

@@ -25,7 +25,7 @@ function runFrames(frameSeconds: number[]): object {
       world.tick(dt);
     });
   }
-  assert.equal(world.simSeconds, 300);
+  assert.equal(world.simSeconds, 30 * CONFIG.timeScale);
   return {
     seconds: world.simSeconds,
     grillMass: world.grill.cells.flat().map(e => [e.initialMassG, e.massG, e.ashG]),
@@ -52,18 +52,21 @@ test('un frame lento limita trabajo pero conserva tiempo pendiente para los sigu
   let simSeconds = 0;
   const tick = (dt: number) => { assert.equal(dt, 0.25); simSeconds += dt; };
   assert.equal(clock.advance(2, tick), CONFIG.simulationMaxStepsPerFrame);
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 6; i++) {
     assert.ok(clock.advance(1 / 60, tick) <= CONFIG.simulationMaxStepsPerFrame);
   }
-  assert.equal(simSeconds, 20.5); // (2 + 3/60) × 10, sin descartar el remanente.
+  const expectedTotal = Math.floor(((2 + 6 / 60) * CONFIG.timeScale + 1e-9) / CONFIG.simulationStepSeconds) * CONFIG.simulationStepSeconds;
+  assert.equal(simSeconds, expectedTotal);
 });
 
 test('los intervalos inválidos no alteran el remanente del reloj', () => {
   const clock = new FixedStepClock();
   let simSeconds = 0;
   const tick = (dt: number) => { simSeconds += dt; };
-  assert.equal(clock.advance(0.01, tick), 0);
+  const halfStepReal = (CONFIG.simulationStepSeconds * 0.4) / CONFIG.timeScale;
+  const restStepReal = (CONFIG.simulationStepSeconds * 0.6) / CONFIG.timeScale;
+  assert.equal(clock.advance(halfStepReal, tick), 0);
   for (const dt of [0, -1, NaN, Infinity, -Infinity]) assert.equal(clock.advance(dt, tick), 0);
-  assert.equal(clock.advance(0.015, tick), 1);
+  assert.equal(clock.advance(restStepReal, tick), 1);
   assert.equal(simSeconds, 0.25);
 });
