@@ -12,7 +12,12 @@ import { createGrill } from '../src/level/grill.ts';
 import { createGrillEmbers } from '../src/effects/grill-embers.ts';
 import { createToolViews } from '../src/art/tool-views.ts';
 import { createMeatViews } from '../src/art/meat-views.ts';
-import { selectTargetFromRay } from '../src/gameplay/player.ts';
+import {
+  applyCameraLookDelta,
+  createMouseLookFilterState,
+  sanitizeMouseDelta,
+  selectTargetFromRay,
+} from '../src/gameplay/player.ts';
 import { createGameplay, type ToolAnimationDetail, type ToolAnimationEvent } from '../src/gameplay/actions.ts';
 import { bindPokerSweep, bindPrimaryAction } from '../src/gameplay/input.ts';
 import { ASADOR_LAYOUT } from '../src/level/asador.ts';
@@ -372,4 +377,44 @@ test('El atizador mueve brasas bajo la parrilla según el ángulo del clic, enga
   unbindClick();
   unbindSweep();
 });
+
+test('El filtro de cámara rechaza picos de warp del mouse a alta velocidad, evita gimbal lock y mantiene roll 0', () => {
+  const state = createMouseLookFilterState(100);
+
+  // 1) Durante la ventana de gracia tras bloquear el puntero (< 45 ms), ignora saltos iniciales de centrado.
+  assert.deepEqual(sanitizeMouseDelta(420, -280, 120, state), { dx: 0, dy: 0 });
+
+  // 2) Movimiento rápido legítimo hacia la derecha seguido de un pico espurio de warp (-680 px) de Windows/Chromium.
+  let angles = { yaw: 0, pitch: 0 };
+  let now = 200;
+  for(const stepDx of [18, 22, 25, 28]) {
+    now += 8;
+    const { dx, dy } = sanitizeMouseDelta(stepDx, -4, now, state);
+    assert.ok(dx > 0 && dx <= stepDx);
+    angles = applyCameraLookDelta(angles, dx, dy);
+  }
+  const yawBeforeSpike = angles.yaw;
+
+  // Llega un salto espurio invertido (-680 px) al re-centrar el cursor del SO: no debe invertir el giro ni teletransportar la cámara.
+  now += 8;
+  const spikeFiltered = sanitizeMouseDelta(-680, 540, now, state);
+  assert.ok(spikeFiltered.dx >= 0, `El pico invertido no debe girar hacia atrás (dx=${spikeFiltered.dx})`);
+  assert.ok(Math.hypot(spikeFiltered.dx, spikeFiltered.dy) < 40, 'El pico extremo debe amortiguarse a la velocidad previa');
+
+  angles = applyCameraLookDelta(angles, spikeFiltered.dx, spikeFiltered.dy);
+  assert.ok(angles.yaw <= yawBeforeSpike, 'El yaw debe continuar suavemente en la misma dirección');
+
+  // 3) Movimientos verticales extremos nunca alcanzan ±90° (gimbal lock) y la cámara conserva rotación Z = 0.
+  const cam = new THREE.PerspectiveCamera(76, 16 / 9, 0.04, 80);
+  cam.rotation.order = 'YXZ';
+  for(let i = 0;i < 200;i++) {
+    now += 8;
+    const { dx, dy } = sanitizeMouseDelta(45, i < 100 ? 85 : -85, now, state);
+    angles = applyCameraLookDelta(angles, dx, dy);
+    cam.rotation.set(angles.pitch, angles.yaw, 0, 'YXZ');
+    assert.ok(Math.abs(angles.pitch) <= THREE.MathUtils.degToRad(80) + 1e-6, 'Pitch excedió el límite de 80°');
+    assert.equal(cam.rotation.z, 0, 'El horizonte de la cámara nunca debe inclinarse (roll !== 0)');
+  }
+});
+
 

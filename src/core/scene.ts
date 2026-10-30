@@ -16,8 +16,10 @@ export function createScene() {
   scene.fog = new THREE.Fog(0x91a7ae, 16, 39);
   const aspect = typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 16 / 9;
   const camera = new THREE.PerspectiveCamera(76, aspect, 0.04, 80);
+  camera.rotation.order = 'YXZ';
   camera.position.set(0, 1.68, 1.0);
   camera.lookAt(-1.0, 1.40, -4.55);
+  camera.rotation.z = 0;
   scene.add(camera);
   const clickable: THREE.Object3D[] = [];
   createPatioLighting(scene);
