@@ -35,7 +35,7 @@ test('E sobre la radio usa el callback y muestra su mensaje; sin callback no rom
   const world = new SimulationWorld();
   const messages: string[] = [];
   let on = true;
-  const gameplay = createGameplay(world, m => messages.push(m), () => { }, () => { on = !on; return on ? 'prendida' : 'apagada'; });
+  const gameplay = createGameplay(world, m => messages.push(m), () => { }, { toggleRadio: () => { on = !on; return on ? 'prendida' : 'apagada'; } });
   gameplay.interact({ kind: 'radio' });
   gameplay.interact({ kind: 'radio' });
   assert.deepEqual(messages, ['apagada', 'prendida']);

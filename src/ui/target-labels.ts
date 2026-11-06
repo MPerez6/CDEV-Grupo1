@@ -1,4 +1,5 @@
 import type { TargetKind } from '../gameplay/targets.ts';
+import { DOG_NAME } from '../ai/dog-brain.ts';
 export function targetName(kind: TargetKind, index?: number): string {
   const names: Record<TargetKind, string> = {
     'fuel-coal': 'Carbón vegetal bajo la mesada · E para cargar 3 trozos',
@@ -12,6 +13,7 @@ export function targetName(kind: TargetKind, index?: number): string {
     'meat': 'Carne · E con pinza para recoger; R para dar vuelta o rodar; Q para orientar',
     'board': 'Mesa de preparación · E con pinza para devolver la pieza sostenida',
     'radio': 'Radio portátil · E para prender o apagar',
+    'dog': `${DOG_NAME} · E para acariciar`,
   };
   return names[kind];
 }

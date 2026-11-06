@@ -5,8 +5,12 @@ import { footprintCoverage } from '../sim/meatFootprint.ts';
 import { TOOL_NAMES } from '../gameplay/tools.ts';
 import type { InteractionTarget, TargetKind } from '../gameplay/targets.ts';
 import { targetName } from './target-labels.ts';
+import { describeMeat } from './cooking-card.ts';
 
 export type HudState = { activeTool: number; target: InteractionTarget | null };
+
+const CONTROLS_KEY = 'asado-controles-ocultos';
+const MESSAGE_SECONDS = 6;
 
 export function createHud(app: HTMLElement, initialMessage: string) {
   app.innerHTML = HUD_TEMPLATE;
@@ -17,6 +21,60 @@ export function createHud(app: HTMLElement, initialMessage: string) {
   };
   let debugEnabled = false;
   let lastMsg = initialMessage;
+  let started = false;
+  let messageTimer = 0;
+
+  // Mensajes: aparecen abajo y se van solos, para no tapar el juego.
+  function flash(message: string): void {
+    const el = $('message');
+    el.textContent = message;
+    el.classList.add('show');
+    window.clearTimeout(messageTimer);
+    messageTimer = window.setTimeout(() => el.classList.remove('show'), MESSAGE_SECONDS * 1000);
+  }
+  flash(initialMessage);
+
+  // Guía de controles en la esquina; H la oculta o la muestra (se recuerda entre partidas).
+  let controlsHidden = false;
+  try { controlsHidden = localStorage.getItem(CONTROLS_KEY) === '1'; } catch { /* sin almacenamiento */ }
+  const applyControls = () => { $('controls').hidden = controlsHidden; $('controls-mini').hidden = !controlsHidden; };
+  applyControls();
+  const onKey = (e: KeyboardEvent) => {
+    if(e.code !== 'KeyH' || e.repeat) return;
+    controlsHidden = !controlsHidden;
+    try { localStorage.setItem(CONTROLS_KEY, controlsHidden ? '1' : '0'); } catch { /* sin almacenamiento */ }
+    applyControls();
+  };
+  window.addEventListener('keydown', onKey);
+
+  // Menús: inicio, pausa lateral y hojas de ayuda / créditos.
+  const overlay = $('overlay');
+  const showView = (view: 'start' | 'pause') => { overlay.dataset.view = view; closeSheets(); };
+  const closeSheets = () => { $('help').hidden = true; $('credits').hidden = true; };
+  overlay.querySelectorAll<HTMLElement>('[data-open]').forEach(b => b.addEventListener('click', () => {
+    closeSheets(); $(b.dataset.open as string).hidden = false;
+  }));
+  overlay.querySelectorAll<HTMLElement>('[data-close]').forEach(b => b.addEventListener('click', closeSheets));
+  $('to-start').addEventListener('click', () => showView('start'));
+
+  // Ficha de cocción: la carne apuntada o la que llevás en la pinza.
+  function renderMeatCard(world: SimulationWorld, target: InteractionTarget | null): void {
+    const card = $('meat-card');
+    const carried = world.carriedMeatId !== null;
+    const id = target?.kind === 'meat' && typeof target.meatId === 'number' ? target.meatId : world.carriedMeatId;
+    const meat = id === null || id === undefined ? undefined : world.meatById(id);
+    if(!meat) { card.hidden = true; return; }
+    const c = describeMeat(meat, carried && id === world.carriedMeatId);
+    card.hidden = false;
+    card.dataset.tone = c.tone;
+    card.innerHTML = `
+      <header><strong>${c.name}</strong><span>${c.place}</span></header>
+      <div class="doneness">${c.doneness}</div>
+      <div class="meter"><i style="width:${Math.round(c.progress * 100)}%"></i></div>
+      <p class="muted">${c.center}</p>
+      <ul class="faces">${c.faces.map(f => `<li data-tone="${f.tone}"><span>${f.name}${f.down ? ' · abajo' : ''}</span><b>${f.label}</b></li>`).join('')}</ul>
+      <p class="hint">${c.hint}</p>`;
+  }
   function update(world: SimulationWorld, state: HudState): void {
     const activeTool = state.activeTool;
     const minutes = Math.floor(world.simSeconds / 60);
@@ -27,8 +85,9 @@ export function createHud(app: HTMLElement, initialMessage: string) {
     $('hud-status').textContent = `En la pala: ${held} · Pinza: ${world.carriedMeatId === null ? 'vacía' : 'con una pieza'}`;
     const target = state.target;
     const kind = target?.kind as TargetKind | undefined;
-    $('target').textContent = kind ? targetName(kind, target?.index) : 'Acercate y apuntá a un objeto para interactuar.';
-    if (world.message !== lastMsg) { lastMsg = world.message; $('message').textContent = world.message; }
+    $('target').textContent = kind ? targetName(kind, target?.index) : '';
+    if (world.message !== lastMsg) { lastMsg = world.message; flash(world.message); }
+    renderMeatCard(world, target);
     if (debugEnabled) {
       const focusId = target?.meatId ?? world.carriedMeatId;
       const focus = typeof focusId === 'number' ? world.meatById(focusId) ?? world.meat : world.meat;
@@ -54,12 +113,22 @@ export function createHud(app: HTMLElement, initialMessage: string) {
     }
   }
   return { update,
-    showMessage(message: string): void { lastMsg = message; $('message').textContent = message; },
+    showMessage(message: string): void { lastMsg = message; flash(message); },
     toggleDebug(): void { debugEnabled = !debugEnabled; $('debug').hidden = !debugEnabled; },
-    setPlaying(playing: boolean): void { $('overlay').style.display = playing ? 'none' : 'grid'; },
+    setPlaying(playing: boolean): void {
+      if(playing) started = true;
+      document.body.classList.toggle('playing', playing);
+      overlay.style.display = playing ? 'none' : 'block';
+      if(!playing) showView(started ? 'pause' : 'start');
+    },
     onPlay(action: () => void): () => void {
       $('play').addEventListener('click', action);
-      return () => $('play').removeEventListener('click', action);
+      $('resume').addEventListener('click', action);
+      return () => {
+        $('play').removeEventListener('click', action);
+        $('resume').removeEventListener('click', action);
+        window.removeEventListener('keydown', onKey);
+      };
     },
   };
 }

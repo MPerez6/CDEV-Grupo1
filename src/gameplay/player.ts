@@ -36,21 +36,68 @@ export function resolveEmberBedTarget(
   };
 }
 
-export function selectTargetFromRay(raycaster: THREE.Raycaster, clickable: readonly THREE.Object3D[], activeTool: number): InteractionTarget | null {
+/**
+ * Contexto opcional para elegir mejor el objetivo. Si no se pasa (pruebas viejas), el comportamiento es el original.
+ * - carryingMeat: con una pieza en la pinza se ignoran las otras carnes, para poder apuntar a la tabla o al sector.
+ * - shovelLoaded: con la pala vacía se ignora el brasero (tapa las brasas de la mesada); cargada, se ignora la mesada.
+ */
+export type AimContext = { carryingMeat?: boolean; shovelLoaded?: boolean };
+
+/** Asistencia de puntería: anillos de rayos alrededor de la mira (radianes) si el rayo central no encuentra nada. */
+export const AIM_ASSIST_RINGS = [0.021, 0.042];
+const AIM_ASSIST_RAYS = 8;
+
+function candidatesFor(clickable: readonly THREE.Object3D[], activeTool: number, ctx: AimContext): THREE.Object3D[] {
   // Con la pala (1) o el atizador (3) se apunta directo al piso refractario bajo la parrilla sin que las carnes arriba tapen el hogar.
   const hearthTool = activeTool === 1 || activeTool === 3;
-  const candidates = clickable.filter(object => object.userData.enabled !== false
-    && !(object.userData.kind === 'tinder-pad' && activeTool !== 0)
-    && !(object.userData.kind === 'tray' && activeTool === 0)
-    && !(hearthTool && object.userData.kind === 'meat')
-    && !(hearthTool && object.userData.kind === 'grill-cell' && !object.userData.emberBed)
-    && !(!hearthTool && object.userData.emberBed));
-  const hit = raycaster.intersectObjects(candidates, false)[0];
+  return clickable.filter(object => {
+    const kind = object.userData.kind;
+    return object.userData.enabled !== false
+      && !(kind === 'tinder-pad' && activeTool !== 0)
+      && !(kind === 'tray' && activeTool === 0)
+      && !(hearthTool && kind === 'meat')
+      && !(hearthTool && kind === 'grill-cell' && !object.userData.emberBed)
+      && !(!hearthTool && object.userData.emberBed)
+      && !(activeTool === 2 && ctx.carryingMeat === true && kind === 'meat')
+      // La tabla solo sirve para devolver la pieza que llevás en la pinza.
+      && !(kind === 'board' && ctx.carryingMeat !== undefined && !(activeTool === 2 && ctx.carryingMeat))
+      && !(activeTool === 1 && ctx.shovelLoaded === false && kind === 'brazier')
+      && !(activeTool === 1 && ctx.shovelLoaded === true && kind === 'tray');
+  });
+}
+
+function targetFromHit(hit: THREE.Intersection | undefined, direction: THREE.Vector3, activeTool: number): InteractionTarget | null {
   if(!hit) return null;
   const maxDistance = hit.object.userData.kind === 'grill-cell' ? 5.0 : 3.5;
   if(hit.distance > maxDistance) return null;
-  if(hit.object.userData.emberBed) return resolveEmberBedTarget(hit.point, raycaster.ray.direction, activeTool === 3);
+  if(hit.object.userData.emberBed) return resolveEmberBedTarget(hit.point, direction, activeTool === 3);
   return { kind: hit.object.userData.kind as TargetKind, index: hit.object.userData.index, meatId: hit.object.userData.meatId };
+}
+
+export function selectTargetFromRay(raycaster: THREE.Raycaster, clickable: readonly THREE.Object3D[], activeTool: number, ctx: AimContext = {}): InteractionTarget | null {
+  const candidates = candidatesFor(clickable, activeTool, ctx);
+  const direct = targetFromHit(raycaster.intersectObjects(candidates, false)[0], raycaster.ray.direction, activeTool);
+  if(direct || ctx.carryingMeat === undefined) return direct;
+  // Asistencia: probar rayos levemente desviados, del anillo más chico al más grande; gana el impacto más cercano.
+  const origin = raycaster.ray.origin, dir = raycaster.ray.direction;
+  const up = Math.abs(dir.y) > 0.95 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  const u = new THREE.Vector3().crossVectors(dir, up).normalize();
+  const v = new THREE.Vector3().crossVectors(u, dir).normalize();
+  const probe = new THREE.Raycaster();
+  probe.far = raycaster.far;
+  probe.near = raycaster.near;
+  for(const radius of AIM_ASSIST_RINGS) {
+    let best: { hit: THREE.Intersection; dir: THREE.Vector3 } | null = null;
+    for(let i = 0;i < AIM_ASSIST_RAYS;i++) {
+      const a = (i / AIM_ASSIST_RAYS) * Math.PI * 2;
+      const d = dir.clone().addScaledVector(u, Math.cos(a) * radius).addScaledVector(v, Math.sin(a) * radius).normalize();
+      probe.set(origin, d);
+      const hit = probe.intersectObjects(candidates, false)[0];
+      if(hit && targetFromHit(hit, d, activeTool) && (!best || hit.distance < best.hit.distance)) best = { hit, dir: d };
+    }
+    if(best) return targetFromHit(best.hit, best.dir, activeTool);
+  }
+  return null;
 }
 
 const MOUSE_SENSITIVITY = 0.002;
@@ -198,9 +245,9 @@ export function createPlayer(camera: THREE.PerspectiveCamera, clickable: THREE.O
 
   const keys = new Set<string>();
   const raycaster = new THREE.Raycaster(); raycaster.far = 5.0;
-  function target(activeTool: number): InteractionTarget | null {
+  function target(activeTool: number, ctx: AimContext = {}): InteractionTarget | null {
     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-    return selectTargetFromRay(raycaster, clickable, activeTool);
+    return selectTargetFromRay(raycaster, clickable, activeTool, ctx);
   }
   function movePlayer(dt: number): void {
     if(!controls.isLocked) return;
