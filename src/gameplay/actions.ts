@@ -39,6 +39,8 @@ export function createGameplay(
   world: SimulationWorld,
   onMessage: (message: string) => void = () => { },
   onToolAction: (event: ToolAnimationEvent, detail?: ToolAnimationDetail) => void = () => { },
+  /** Ambientación: prende/apaga la radio y devuelve el mensaje. Opcional para no afectar las pruebas. */
+  onRadioToggle?: () => string,
 ) {
   let activeTool = 0;
   function notify(message: string): void { world.message = message; onMessage(message); }
@@ -82,6 +84,9 @@ export function createGameplay(
           if(world.returnMeatToBoard()) onToolAction('tongs-release');
           notify(world.message);
         }
+        break;
+      case 'radio':
+        notify(onRadioToggle ? onRadioToggle() : 'La radio no tiene pilas.');
         break;
       default:
         notify('Para esa acción utilizá la herramienta indicada en pantalla.');

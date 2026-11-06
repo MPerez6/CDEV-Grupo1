@@ -2,13 +2,19 @@ import * as THREE from 'three';
 import { createAsador } from './asador.ts';
 import { boardPosition } from './layout.ts';
 import { box, label, mark } from './primitives.ts';
+import { createBarrio } from './barrio.ts';
+import { createParra } from './parra.ts';
+import { createMesaFamiliar } from './mesa-familiar.ts';
+import { createDetalles } from './detalles.ts';
 
 export function createPatio(scene: THREE.Scene, clickable: THREE.Object3D[]): void {
   box(scene, [18, 0.18, 15], [0, -0.12, -1.9], 0x9b968a, false);
-  // Jardín/parrilla de patio: mampostería, pared y mesas básicas.
-  box(scene, [18, 3, 0.22], [0, 1.45, -7.15], 0xb8a99a, false);
-  box(scene, [0.18, 3, 13], [-8, 1.45, -2.2], 0xa9a39a, false);
-  box(scene, [0.18, 3, 13], [8, 1.45, -2.2], 0xa9a39a, false);
+  // Patio de casa familiar (propuesta rama escenario-patio): medianeras de ladrillo con las mismas
+  // medidas y posiciones que las paredes anteriores, barrio alrededor, parra, mesa familiar y detalles.
+  createBarrio(scene);
+  createParra(scene);
+  createMesaFamiliar(scene, clickable);
+  createDetalles(scene);
   createAsador(scene, clickable, label);
 
   // Mesa provisional para probar los seis cortes antes de incorporar la heladera.

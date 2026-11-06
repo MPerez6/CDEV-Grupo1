@@ -2,8 +2,10 @@ import { SimulationWorld } from '../sim/world.ts';
 import { FixedStepClock } from '../sim/clock.ts';
 import { MEAT_KINDS } from '../sim/meatCatalog.ts';
 import { ASADOR_LAYOUT } from '../level/asador.ts';
-import { PREP_TABLE_BOUNDS } from '../level/layout.ts';
+import { CHAIR_STACK_BOUNDS, FAMILY_TABLE_BOUNDS, PERGOLA_POST_BOUNDS, PREP_TABLE_BOUNDS, RADIO_POSITION } from '../level/layout.ts';
 import { createAudio } from '../audio/audio.ts';
+import { createRadioAudio } from '../audio/radio.ts';
+import * as THREE from 'three';
 import { createHud } from '../ui/hud.ts';
 import { createGameplay } from '../gameplay/actions.ts';
 import { createPlayer } from '../gameplay/player.ts';
@@ -18,10 +20,21 @@ export function startApplication(app: HTMLElement): () => void {
   const ui = createHud(app, world.message);
   const visual = createScene();
   const renderer = createRenderer(); app.prepend(renderer.domElement);
-  const player = createPlayer(visual.camera, visual.clickable, [ASADOR_LAYOUT.bounds, PREP_TABLE_BOUNDS]);
+  const player = createPlayer(visual.camera, visual.clickable, [
+    ASADOR_LAYOUT.bounds, PREP_TABLE_BOUNDS, FAMILY_TABLE_BOUNDS, CHAIR_STACK_BOUNDS, ...PERGOLA_POST_BOUNDS,
+  ]);
   const { controls, keys } = player;
-  const gameplay = createGameplay(world, ui.showMessage, visual.triggerToolAction);
+  const radio = createRadioAudio(RADIO_POSITION);
+  const radioLed = visual.scene.getObjectByName('radio-led') as THREE.Mesh | undefined;
+  const syncRadioLed = () => {
+    const mat = radioLed?.material as THREE.MeshStandardMaterial | undefined;
+    if(mat) mat.emissiveIntensity = radio.isOn() ? 1.6 : 0;
+  };
+  const gameplay = createGameplay(world, ui.showMessage, visual.triggerToolAction, () => {
+    const message = radio.toggle(); syncRadioLed(); return message;
+  });
   const audio = createAudio();
+  const listenerForward = new THREE.Vector3();
   const target = () => player.target(gameplay.activeTool);
   const unbindKeys = bindGameplayInput(window, {
     isPlaying: () => controls.isLocked, keys, gameplay, getTarget: target, toggleDebug: ui.toggleDebug,
@@ -30,9 +43,9 @@ export function startApplication(app: HTMLElement): () => void {
   const unbindSweep = bindPokerSweep(document, {
     isPlaying: () => controls.isLocked, gameplay, getTarget: target,
   });
-  const unbindPlay = ui.onPlay(() => { audio.start(); controls.lock(); });
-  const onLock = () => ui.setPlaying(true);
-  const onUnlock = () => { ui.setPlaying(false); keys.clear(); audio.pause(); };
+  const unbindPlay = ui.onPlay(() => { audio.start(); radio.start(); controls.lock(); });
+  const onLock = () => { ui.setPlaying(true); radio.start(); };
+  const onUnlock = () => { ui.setPlaying(false); keys.clear(); audio.pause(); radio.pause(); };
   controls.addEventListener('lock', onLock); controls.addEventListener('unlock', onUnlock);
   const resize = () => {
     visual.camera.aspect = window.innerWidth / window.innerHeight;
@@ -55,6 +68,8 @@ export function startApplication(app: HTMLElement): () => void {
     uiTimer += realDt;
     if(uiTimer > 0.15) { updateHud(); uiTimer = 0; }
     audio.update(Math.max(0, ...world.meats.map(meat => world.meatFluxWm2(meat))), controls.isLocked);
+    visual.camera.getWorldDirection(listenerForward);
+    radio.update(visual.camera.position, listenerForward);
     renderer.render(visual.scene, visual.camera);
   }
   updateHud(); frameId = requestAnimationFrame(frame);
@@ -63,6 +78,6 @@ export function startApplication(app: HTMLElement): () => void {
     unbindKeys(); unbindClick(); unbindSweep(); unbindPlay();
     window.removeEventListener('resize', resize); document.removeEventListener('visibilitychange', visibility);
     controls.removeEventListener('lock', onLock); controls.removeEventListener('unlock', onUnlock);
-    controls.unlock(); controls.dispose(); audio.dispose(); renderer.dispose(); renderer.domElement.remove();
+    controls.unlock(); controls.dispose(); audio.dispose(); radio.dispose(); renderer.dispose(); renderer.domElement.remove();
   };
 }

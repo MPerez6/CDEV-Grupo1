@@ -11,6 +11,7 @@ export function targetName(kind: TargetKind, index?: number): string {
     'grill-cell': `Sector de parrilla ${index === undefined ? '?' : index + 1} · 2: brasas · 3: carne · 4 + clic: mover brasas`,
     'meat': 'Carne · E con pinza para recoger; R para dar vuelta o rodar; Q para orientar',
     'board': 'Mesa de preparación · E con pinza para devolver la pieza sostenida',
+    'radio': 'Radio portátil · E para prender o apagar',
   };
   return names[kind];
 }

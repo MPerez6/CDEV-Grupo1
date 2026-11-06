@@ -1,4 +1,4 @@
-export type TargetKind = 'fuel-coal' | 'fuel-small-wood' | 'fuel-large-wood' | 'tinder' | 'brazier' | 'tinder-pad' | 'tray' | 'grill-cell' | 'meat' | 'board';
+export type TargetKind = 'fuel-coal' | 'fuel-small-wood' | 'fuel-large-wood' | 'tinder' | 'brazier' | 'tinder-pad' | 'tray' | 'grill-cell' | 'meat' | 'board' | 'radio';
 
 export type PokerAim = {
   dirX: number;
