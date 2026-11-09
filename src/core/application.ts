@@ -5,6 +5,11 @@ import { ASADOR_LAYOUT } from '../level/asador.ts';
 import { CHAIR_STACK_BOUNDS, FAMILY_TABLE_BOUNDS, PERGOLA_POST_BOUNDS, PREP_TABLE_BOUNDS, RADIO_POSITION } from '../level/layout.ts';
 import { createAudio } from '../audio/audio.ts';
 import { createRadioAudio } from '../audio/radio.ts';
+import { createCarbonAudio } from '../audio/carbon.ts';
+import { createEncendedorAudio } from '../audio/encendedor.ts';
+import { createPalitaAudio } from '../audio/palita.ts';
+import { createPasosAudio } from '../audio/pasos.ts';
+import { createPerroAudio } from '../audio/perro.ts';
 import { createDog } from '../ai/dog.ts';
 import * as THREE from 'three';
 import { createHud } from '../ui/hud.ts';
@@ -35,11 +40,56 @@ export function startApplication(app: HTMLElement): () => void {
   const dog = createDog(visual.scene, visual.clickable);
   const playerXZ = () => ({ x: visual.camera.position.x, z: visual.camera.position.z });
   const somethingBurning = () => world.meats.some(m => m.onGrill && Math.max(m.burn.a, m.burn.b, m.casingDamage.a, m.casingDamage.b) >= 10);
-  const gameplay = createGameplay(world, ui.showMessage, visual.triggerToolAction, {
-    toggleRadio: () => { const message = radio.toggle(); syncRadioLed(); return message; },
-    petDog: () => dog.pet(playerXZ(), somethingBurning()),
-  });
+  const encendedorAudio = createEncendedorAudio();
+  const palitaAudio = createPalitaAudio();
+  const pasosAudio = createPasosAudio();
+  const perroAudio = createPerroAudio();
+  
+  const gameplay = createGameplay(
+    world,
+    ui.showMessage,
+
+    (event, detail) => {
+
+      // Mantener las animaciones del juego
+      visual.triggerToolAction(event, detail);
+
+      // Reproducir el encendedor
+      if (
+        event === 'lighter-flick' ||
+        event === 'ignite'
+      ) {
+        encendedorAudio.play();
+      }
+
+      if (event === 'shovel-scoop') {
+        palitaAudio.play();
+      }
+
+    },
+
+    {
+      toggleRadio: () => {
+        const message = radio.toggle();
+        syncRadioLed();
+        return message;
+      },
+      petDog: () => {
+        const mensaje = dog.pet(
+          playerXZ(),
+          somethingBurning()
+        );
+
+        perroAudio.play();
+
+        return mensaje;
+      },
+    }
+  );
+
   const audio = createAudio();
+  //sonido del carbon
+  const carbonAudio = createCarbonAudio();
   const listenerForward = new THREE.Vector3();
   // Solo en `npm run dev`: acceso para pruebas y capturas (Vite lo elimina del build de producción).
   if((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV)
@@ -52,9 +102,9 @@ export function startApplication(app: HTMLElement): () => void {
   const unbindSweep = bindPokerSweep(document, {
     isPlaying: () => controls.isLocked, gameplay, getTarget: target,
   });
-  const unbindPlay = ui.onPlay(() => { audio.start(); radio.start(); controls.lock(); });
-  const onLock = () => { ui.setPlaying(true); radio.start(); };
-  const onUnlock = () => { ui.setPlaying(false); keys.clear(); audio.pause(); radio.pause(); };
+  const unbindPlay = ui.onPlay(() => { audio.start(); carbonAudio.start(); pasosAudio.start(); radio.start(); controls.lock(); });
+  const onLock = () => { ui.setPlaying(true); radio.start(); pasosAudio.start; };
+  const onUnlock = () => { ui.setPlaying(false); keys.clear(); audio.pause(); carbonAudio.pause(); pasosAudio.pause(); radio.pause(); };
   controls.addEventListener('lock', onLock); controls.addEventListener('unlock', onUnlock);
   const resize = () => {
     visual.camera.aspect = window.innerWidth / window.innerHeight;
@@ -66,17 +116,109 @@ export function startApplication(app: HTMLElement): () => void {
   const visibility = () => { previous = performance.now(); };
   document.addEventListener('visibilitychange', visibility);
   const updateHud = () => ui.update(world, { activeTool: gameplay.activeTool, target: controls.isLocked ? target() : null });
+  //variables de pasos
+  let distanciaAcumulada = 0;
+  let ultimaX = visual.camera.position.x;
+  let ultimaZ = visual.camera.position.z;
   function frame(now: number): void {
     frameId = requestAnimationFrame(frame);
     const frameSeconds = Math.max(0, (now - previous) / 1000);
     const realDt = Math.min(frameSeconds, 0.05);
     previous = now; elapsedReal += realDt;
     player.move(realDt);
+    
+    const x = visual.camera.position.x;
+    const z = visual.camera.position.z;
+
+    const recorrido = Math.hypot(
+      x - ultimaX,
+      z - ultimaZ
+    );
+
+    ultimaX = x;
+    ultimaZ = z;
+
+    if (controls.isLocked && !document.hidden) {
+      // Distancia aproximada entre pisadas
+      if (recorrido > 0.001 && recorrido < 1) {
+        distanciaAcumulada += recorrido;
+
+        if (distanciaAcumulada >= 0.7) {
+          pasosAudio.playStep();
+          distanciaAcumulada -= 0.7;
+        }
+      }
+    } else {
+      distanciaAcumulada = 0;
+    }
+
     if(controls.isLocked && !document.hidden) clock.advance(frameSeconds, dt => world.tick(dt));
     visual.updateVisuals(world, elapsedReal, gameplay.activeTool);
     uiTimer += realDt;
     if(uiTimer > 0.15) { updateHud(); uiTimer = 0; }
     audio.update(Math.max(0, ...world.meats.map(meat => world.meatFluxWm2(meat))), controls.isLocked);
+    //carbon sonido 
+
+  const brazier = world.brazier;
+
+  // Actividad de combustión del carbón
+  const actividadCarbon = brazier.fuel
+    .filter(fuel => fuel.kind === 'charcoal')
+    .reduce((total, fuel) => {
+      const progreso = fuel.progress;
+
+      const masaRestante =
+        fuel.ember.initialMassG > 0
+          ? fuel.ember.massG / fuel.ember.initialMassG
+          : 0;
+
+      return total + progreso * progreso
+        * masaRestante;
+    }, 0);
+
+  // Intensidad normalizada entre 0 y 1
+  const intensidadCarbon = brazier.lit
+    ? Math.min(
+        1,
+        (brazier.tinderBurning ? 0.12 : 0) +
+        actividadCarbon / 3
+      )
+    : 0;
+
+
+  const [bx, , bz] = ASADOR_LAYOUT.brazierPosition;
+
+  // Distancia horizontal entre jugador y brasero
+  const distancia = Math.hypot(
+    visual.camera.position.x - bx,
+    visual.camera.position.z - bz
+  );
+
+  // Hasta 2 metros: volumen completo
+  // A partir de 10 metros: silencio
+  const distanciaMin = 2;
+  const distanciaMax = 10;
+
+  const proporcion = Math.max(
+    0,
+    Math.min(
+      1,
+      (distanciaMax - distancia) /
+      (distanciaMax - distanciaMin)
+    )
+  );
+
+  // Caída progresiva del volumen
+  const factorDistancia = proporcion * proporcion;
+    // Actualizar sonido
+  carbonAudio.update(
+    controls.isLocked && !document.hidden
+      ? intensidadCarbon
+      : 0,
+    factorDistancia
+  );
+
+
     if(controls.isLocked) {
       const dogEvents = dog.update({ dt: realDt, player: playerXZ(), meatOnGrill: world.meats.some(m => m.onGrill), burning: somethingBurning() }, elapsedReal);
       for(const event of dogEvents) ui.showMessage(event.message);
@@ -91,6 +233,6 @@ export function startApplication(app: HTMLElement): () => void {
     unbindKeys(); unbindClick(); unbindSweep(); unbindPlay();
     window.removeEventListener('resize', resize); document.removeEventListener('visibilitychange', visibility);
     controls.removeEventListener('lock', onLock); controls.removeEventListener('unlock', onUnlock);
-    controls.unlock(); controls.dispose(); audio.dispose(); radio.dispose(); renderer.dispose(); renderer.domElement.remove();
+    controls.unlock(); controls.dispose(); audio.dispose(); carbonAudio.dispose(); encendedorAudio.dispose(); palitaAudio.dispose(); pasosAudio.dispose(); perroAudio.dispose(); radio.dispose(); renderer.dispose(); renderer.domElement.remove();
   };
 }
