@@ -202,8 +202,8 @@ export function createToolViews(camera: THREE.Camera) {
         ? (0.42 + Math.sin(elapsedReal * 7.5) * 0.06) * ratio
         : 0;
     } else {
-      carriedScatter.update(carried.fuel.ember, elapsedReal, { heat: carried.fuel.progress * 0.45 });
-      shovelGlowLight.intensity = 0;
+      carriedScatter.update(carried.fuel.ember, elapsedReal, { heat: Math.max(0.75, carried.fuel.progress) });
+      shovelGlowLight.intensity = models.shovel.group.visible ? 0.30 : 0;
     }
   }
 

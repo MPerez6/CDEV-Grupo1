@@ -8,5 +8,7 @@ export function createRenderer(options: { pixelRatioLimit?: number; exposure?: n
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = options.exposure ?? 1.2;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   return renderer;
 }

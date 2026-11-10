@@ -2,7 +2,7 @@ import { SimulationWorld } from '../sim/world.ts';
 import { FixedStepClock } from '../sim/clock.ts';
 import { MEAT_KINDS } from '../sim/meatCatalog.ts';
 import { ASADOR_LAYOUT } from '../level/asador.ts';
-import { CHAIR_STACK_BOUNDS, FAMILY_TABLE_BOUNDS, PERGOLA_POST_BOUNDS, PREP_TABLE_BOUNDS, RADIO_POSITION } from '../level/layout.ts';
+import { CHAIR_STACK_BOUNDS, FAMILY_TABLE_BOUNDS, PATIO_TREE_BOUNDS, PERGOLA_POST_BOUNDS, PREP_TABLE_BOUNDS, RADIO_POSITION, RESTAURANT_TABLE_BOUNDS } from '../level/layout.ts';
 import { createAudio } from '../audio/audio.ts';
 import { createRadioAudio } from '../audio/radio.ts';
 import { createCarbonAudio } from '../audio/carbon.ts';
@@ -26,9 +26,9 @@ export function startApplication(app: HTMLElement): () => void {
   const ui = createHud(app, world.message);
   const visual = createScene();
   const renderer = createRenderer(); app.prepend(renderer.domElement);
-  const player = createPlayer(visual.camera, visual.clickable, [
-    ASADOR_LAYOUT.bounds, PREP_TABLE_BOUNDS, FAMILY_TABLE_BOUNDS, CHAIR_STACK_BOUNDS, ...PERGOLA_POST_BOUNDS,
-  ]);
+  const baseObstacles = [ASADOR_LAYOUT.bounds, PREP_TABLE_BOUNDS, CHAIR_STACK_BOUNDS, PATIO_TREE_BOUNDS, ...PERGOLA_POST_BOUNDS];
+  const activeObstacles = [...baseObstacles, FAMILY_TABLE_BOUNDS];
+  const player = createPlayer(visual.camera, visual.clickable, activeObstacles);
   const { controls, keys } = player;
   const radio = createRadioAudio(RADIO_POSITION);
   const radioLed = visual.scene.getObjectByName('radio-led') as THREE.Mesh | undefined;
@@ -102,7 +102,17 @@ export function startApplication(app: HTMLElement): () => void {
   const unbindSweep = bindPokerSweep(document, {
     isPlaying: () => controls.isLocked, gameplay, getTarget: target,
   });
-  const unbindPlay = ui.onPlay(() => { audio.start(); carbonAudio.start(); pasosAudio.start(); radio.start(); controls.lock(); });
+  const unbindPlay = ui.onPlay(mode => {
+    if(mode === 'clients') {
+      world.clients.reset(true);
+      activeObstacles.splice(0, activeObstacles.length, ...baseObstacles, ...RESTAURANT_TABLE_BOUNDS);
+      ui.showMessage('Modo Clientes activo: salón de Parrilla AsArt habilitado. Los comensales entrarán por la puerta.');
+    } else if(mode === 'training') {
+      world.clients.reset(false);
+      activeObstacles.splice(0, activeObstacles.length, ...baseObstacles, FAMILY_TABLE_BOUNDS);
+    }
+    audio.start(); carbonAudio.start(); pasosAudio.start(); radio.start(); controls.lock();
+  });
   const onLock = () => { ui.setPlaying(true); radio.start(); pasosAudio.start; };
   const onUnlock = () => { ui.setPlaying(false); keys.clear(); audio.pause(); carbonAudio.pause(); pasosAudio.pause(); radio.pause(); };
   controls.addEventListener('lock', onLock); controls.addEventListener('unlock', onUnlock);
@@ -222,6 +232,8 @@ export function startApplication(app: HTMLElement): () => void {
     if(controls.isLocked) {
       const dogEvents = dog.update({ dt: realDt, player: playerXZ(), meatOnGrill: world.meats.some(m => m.onGrill), burning: somethingBurning() }, elapsedReal);
       for(const event of dogEvents) ui.showMessage(event.message);
+      const clientEvents = world.updateClients(realDt);
+      for(const event of clientEvents) ui.showMessage(event.message);
     }
     visual.camera.getWorldDirection(listenerForward);
     radio.update(visual.camera.position, listenerForward);

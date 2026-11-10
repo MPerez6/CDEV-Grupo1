@@ -3,6 +3,7 @@ import { MeatModel } from './meat.ts';
 import { CONFIG } from './parameters.ts';
 import { type MeatKind } from './meatCatalog.ts';
 import { footprintCoverage, polygonOverlapArea, meatFootprint } from './meatFootprint.ts';
+import { ClientManager, type ClientEvent } from '../ai/client-brain.ts';
 
 export type PokerStrikeInput = {
   pointM: { x: number; z: number };
@@ -19,6 +20,7 @@ export type PokerStrikeResult = {
 export class SimulationWorld {
   public brazier = new BrazierModel();
   public grill = new HeatGrid();
+  public clients = new ClientManager();
   public readonly meats: MeatModel[] = [new MeatModel()];
   public carriedMeatId: number | null = null;
   private coverageCache = new Map<number, { key: string; coverage: ReturnType<typeof footprintCoverage> }>();
@@ -91,10 +93,37 @@ export class SimulationWorld {
     const meat = this.carriedMeatId === null ? undefined : this.meatById(this.carriedMeatId);
     if (!meat) return false;
     meat.location = 'board';
+    meat.servedSeat = null;
     meat.quarterTurns = 0;
     this.carriedMeatId = null;
     this.message = `${meat.definition.name} sobre su tabla; conserva su estado.`;
     return true;
+  }
+  serveMeatToSeat(seatIndex: number): boolean {
+    const meat = this.carriedMeatId === null ? undefined : this.meatById(this.carriedMeatId);
+    if (!meat) {
+      this.message = 'Llevá un corte en la pinza (3) para servirlo en el plato.';
+      return false;
+    }
+    if (!this.clients.enabled) {
+      this.message = 'Activá el Modo Clientes desde el menú de inicio para atender la mesa.';
+      return false;
+    }
+    const res = this.clients.serveSeat(seatIndex, meat);
+    this.message = res.message;
+    if (!res.ok) return false;
+    meat.location = 'served';
+    meat.servedSeat = seatIndex;
+    this.carriedMeatId = null;
+    return true;
+  }
+  updateClients(realDt: number): ClientEvent[] {
+    const { events, finishedMeatIds } = this.clients.update(realDt);
+    for (const meatId of finishedMeatIds) {
+      const m = this.meatById(meatId);
+      if (m) m.resetToFreshBoard();
+    }
+    return events;
   }
   flipMeat(id: number): boolean {
     const meat = this.meatById(id);
@@ -118,15 +147,17 @@ export class SimulationWorld {
     return true;
   }
   depositEmber(index: number, positionM?: { x: number; z: number }): boolean {
-    if (this.carried?.state !== 'ready') { this.message = 'Primero recogé brasas rojas con la pala.'; return false; }
+    if (!this.carried) { this.message = 'Primero recogé brasas rojas con la pala.'; return false; }
+    const ember = this.carried.state === 'ready' ? this.carried.ember : this.carried.fuel.ember;
+    if (ember.massG <= 0) { this.message = 'Primero recogé brasas rojas con la pala.'; return false; }
     if (!Number.isInteger(index) || index < 0 || index >= this.grill.cells.length) return false;
     if (positionM && Number.isFinite(positionM.x) && Number.isFinite(positionM.z)) {
-      this.carried.ember.positionM = {
+      ember.positionM = {
         x: Math.max(0, Math.min(CONFIG.grillWidthM, positionM.x)),
         z: Math.max(0, Math.min(CONFIG.grillDepthM, positionM.z)),
       };
     }
-    this.grill.put(index, this.carried.ember);
+    this.grill.put(index, ember);
     this.carried = null;
     this.message = `Brasas colocadas en el sector ${index + 1}.`;
     return true;

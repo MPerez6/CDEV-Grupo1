@@ -33,23 +33,40 @@ export function faceLabel(brown: number, burn: number): { label: string; tone: T
 }
 
 function doneness(meat: MeatModel): { label: string; tone: Tone } {
-  if(meat.objectiveAchieved) return { label: '¡A punto! Sacala', tone: 'ready' };
-  switch(meat.state) {
-    case 'burned': return { label: 'Quemada', tone: 'over' };
-    case 'dry': return { label: 'Pasada y seca', tone: 'over' };
-    case 'cooked': return { label: 'Cocida', tone: 'ready' };
-    case 'undercooked': return { label: 'Le falta', tone: 'progress' };
-    case 'precooked': return { label: 'Precocida: calentala', tone: 'raw' };
-    case 'reheating': return { label: 'Calentándose', tone: 'progress' };
-    default: return { label: 'Cruda', tone: 'raw' };
+  const maxBurn = Math.max(meat.burn.a, meat.burn.b, meat.casingDamage.a, meat.casingDamage.b);
+  if(maxBurn >= P.burnedThreshold || meat.state === 'burned') return { label: 'Quemada', tone: 'over' };
+  if(meat.state === 'dry') return { label: 'Pasada y seca', tone: 'over' };
+
+  const minBrown = Math.min(meat.brown.a, meat.brown.b);
+  const avgBrown = (meat.brown.a + meat.brown.b) * 0.5;
+  const c = meat.centerC;
+
+  if(meat.definition.precooked) {
+    if(c >= 55 && avgBrown >= 15) return { label: '¡Lista! Caliente y dorada', tone: 'ready' };
+    if(meat.hasReceivedGrillHeat) return { label: 'Calentándose', tone: 'progress' };
+    return { label: 'Precocida: calentala', tone: 'raw' };
   }
+
+  if(meat.definition.geometry === 'cylinder') {
+    if(c >= 68 && minBrown >= CONFIG.meatBrowningMin * 0.8) return { label: '¡A punto! Dorado parejo', tone: 'ready' };
+    if(c >= 45 || avgBrown >= 12) return { label: 'Haciéndose', tone: 'progress' };
+    return { label: 'Crudo', tone: 'raw' };
+  }
+
+  // Cortes vacunos planos: mostramos el punto gastronómico para las comandas de clientes
+  if(c >= 74.5 && avgBrown >= 25) return { label: 'Bien cocido', tone: 'ready' };
+  if(c >= 68 && minBrown >= CONFIG.meatBrowningMin) return { label: '¡A punto!', tone: 'ready' };
+  if(c >= 58 && avgBrown >= 20) return { label: 'Jugoso', tone: 'ready' };
+  if(c >= P.undercookedCenterC || avgBrown >= 10) return { label: 'Le falta cocción', tone: 'progress' };
+  return { label: 'Cruda', tone: 'raw' };
 }
 
 function hint(meat: MeatModel, carried: boolean): string {
-  if(carried) return 'Clic sobre un sector con brasas para apoyarla.';
+  if(carried) return 'Clic en la parrilla para apoyar, o en el plato de un cliente para servir.';
   if(meat.location === 'board') return 'Agarrala con la pinza (3 + E) y llevala a la parrilla.';
   if(meat.state === 'burned') return 'Ya se quemó: sacala de la parrilla.';
-  if(meat.objectiveAchieved) return 'Está en su punto: levantala con la pinza (E).';
+  if(meat.objectiveAchieved || (meat.centerC >= 58 && (meat.brown.a + meat.brown.b) >= 45))
+    return 'Lista para servir: levantala con la pinza (E) y llevala al plato del cliente.';
   const down = meat.faceDown, up = down === 'a' ? 'b' : 'a';
   const turnKey = meat.definition.geometry === 'cylinder' ? 'rodala (R)' : 'dala vuelta (R)';
   if(meat.burn[down] >= 5) return `Se está quemando abajo: ${turnKey} o pasala a menos fuego.`;

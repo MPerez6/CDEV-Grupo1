@@ -3,6 +3,8 @@ import type { SimulationWorld } from '../sim/world.ts';
 import type { FuelKind } from '../sim/embers.ts';
 import type { InteractionTarget } from './targets.ts';
 import { TOOL_NAMES } from './tools.ts';
+import { MEAT_CATALOG } from '../sim/meatCatalog.ts';
+import { donenessLabel, estimateOrderTip } from '../ai/client-brain.ts';
 
 export type ToolAnimationEvent =
   | 'equip'
@@ -85,11 +87,44 @@ export function createGameplay(
           notify(world.message);
         }
         break;
+      case 'plate':
+      case 'client': {
+        const seatIdx = target.index ?? 0;
+        if(activeTool === 2 && world.carriedMeatId !== null) {
+          onToolAction(world.serveMeatToSeat(seatIdx) ? 'tongs-release' : 'tongs-clack');
+          notify(world.message);
+        } else {
+          const client = world.clients.clientAtSeat(seatIdx);
+          if(client && client.state === 'esperando') {
+            const cutName = MEAT_CATALOG[client.order.kind].name;
+            const pointDesc = donenessLabel(client.order.doneness, client.order.kind);
+            const liveTip = estimateOrderTip(client.order.kind, client.patienceRatio);
+            notify(`${client.profile.name} espera: ${cutName} · ${pointDesc} (Propina estimada: +$${liveTip.toLocaleString('es-AR')}). Llevá el corte con la pinza (3).`);
+          } else if(client && client.state === 'comiendo') {
+            const sign = client.lastScoreDelta >= 0 ? `+${client.lastScoreDelta}` : `${client.lastScoreDelta}`;
+            const tipNote = client.lastTipPesos > 0 ? ` · Propina +$${client.lastTipPesos.toLocaleString('es-AR')}` : ' · Sin propina ($0)';
+            if(client.isAngry || client.reactionKind === 'queja-punto') {
+              notify(`${client.profile.name}: "${client.lastReaction ?? '¡No es lo que te pedí!'}" (${sign} pts${tipNote})`);
+            } else {
+              notify(`${client.profile.name} está disfrutando su plato: "${client.lastReaction ?? '¡Muy rico!'}" (${sign} pts${tipNote})`);
+            }
+          } else {
+            notify('Lugar libre en la mesa.');
+          }
+        }
+        break;
+      }
       case 'radio':
         notify(ambient.toggleRadio ? ambient.toggleRadio() : 'La radio no tiene pilas.');
         break;
       case 'dog':
         notify(ambient.petDog ? ambient.petDog() : 'El perro te mira.');
+        break;
+      case 'tray':
+      case 'grill-cell':
+      case 'tinder-pad':
+      case 'brazier':
+        primaryAction(target);
         break;
       default:
         notify('Para esa acción utilizá la herramienta indicada en pantalla.');
@@ -143,6 +178,18 @@ export function createGameplay(
     }
     if(kind === 'grill-cell' && activeTool === 2 && world.carriedMeatId !== null) {
       onToolAction(world.placeMeat(target.index as number) ? 'tongs-release' : 'tongs-clack');
+      return notify(world.message);
+    }
+    if(kind === 'meat' && activeTool === 2 && world.carriedMeatId === null) {
+      onToolAction(world.takeMeat(target.meatId as number) ? 'tongs-grab' : 'tongs-clack');
+      return notify(world.message);
+    }
+    if(kind === 'board' && activeTool === 2 && world.carriedMeatId !== null) {
+      if(world.returnMeatToBoard()) onToolAction('tongs-release');
+      return notify(world.message);
+    }
+    if((kind === 'plate' || kind === 'client') && activeTool === 2 && world.carriedMeatId !== null) {
+      onToolAction(world.serveMeatToSeat(target.index ?? 0) ? 'tongs-release' : 'tongs-clack');
       return notify(world.message);
     }
     idleClickFeedback();

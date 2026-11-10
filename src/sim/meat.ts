@@ -18,7 +18,8 @@ export class MeatModel {
   public readonly casingDamage: Record<Side, number> = { a: 0, b: 0 };
   public juiciness = 100;
   public faceDown: Side = 'a';
-  public location: 'board' | 'carried' | 'grill' = 'board';
+  public location: 'board' | 'carried' | 'grill' | 'served' = 'board';
+  public servedSeat: number | null = null;
   public positionM = { x: CONFIG.grillWidthM / 2, z: CONFIG.grillDepthM / 2 };
   public quarterTurns = 0;
   public boardSlot = 0;
@@ -45,6 +46,20 @@ export class MeatModel {
   get onGrill(): boolean { return this.location === 'grill'; }
   set onGrill(value: boolean) { this.location = value ? 'grill' : 'board'; }
   flip(): void { this.faceDown = this.faceDown === 'a' ? 'b' : 'a'; }
+  resetToFreshBoard(): void {
+    this.layersC.fill(CONFIG.meatInitialC);
+    this.brown.a = 0; this.brown.b = 0;
+    this.burn.a = 0; this.burn.b = 0;
+    this.surfaceC.a = CONFIG.meatInitialC; this.surfaceC.b = CONFIG.meatInitialC;
+    this.casingDamage.a = 0; this.casingDamage.b = 0;
+    this.juiciness = 100;
+    this.faceDown = 'a';
+    this.location = 'board';
+    this.servedSeat = null;
+    this.quarterTurns = 0;
+    this.totalSimSeconds = 0;
+    this.hasReceivedGrillHeat = false;
+  }
   /** Flujo incidente en W/m². Los rangos recomendados nunca recortan el calor. */
   update(dt: number, incomingFluxWm2: number): void {
     if (!Number.isFinite(dt) || dt <= 0) return;

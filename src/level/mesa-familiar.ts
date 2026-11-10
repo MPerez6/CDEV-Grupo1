@@ -8,14 +8,18 @@ import { huleTexture, paperTexture, seeded, tiled } from './textures.ts';
  * panera, ensaladera, mate con termo y la radio portátil (seleccionable: E la prende o apaga).
  */
 export function createMesaFamiliar(scene: THREE.Scene, clickable: THREE.Object3D[]): void {
-  createTable(scene);
+  const familyGroup = new THREE.Group();
+  familyGroup.name = 'mesa-familiar-group';
+  scene.add(familyGroup);
+
+  createTable(familyGroup);
   const { x, width } = FAMILY_TABLE;
   for(const cz of [-0.35, 0.4, 1.15]) {
-    createChair(scene, x - width / 2 - 0.36, cz, Math.PI / 2);
-    createChair(scene, x + width / 2 + 0.36, cz, -Math.PI / 2);
+    createChair(familyGroup, x - width / 2 - 0.36, cz, Math.PI / 2);
+    createChair(familyGroup, x + width / 2 + 0.36, cz, -Math.PI / 2);
   }
   for(let i = 0;i < 4;i++) createChair(scene, CHAIR_STACK.x, CHAIR_STACK.z, 0.15 + i * 0.03, i * 0.075);
-  createTableware(scene);
+  createTableware(familyGroup);
   createRadio(scene, clickable);
 }
 
@@ -31,7 +35,7 @@ function put(parent: THREE.Object3D, geometry: THREE.BufferGeometry, material: T
   return m;
 }
 
-function createTable(scene: THREE.Scene): void {
+function createTable(scene: THREE.Object3D): void {
   const { x, z, width, length, top } = FAMILY_TABLE;
   const legMat = std(0x5d4a38);
   for(const dx of [-1, 1]) for(const dz of [-1, 1])
@@ -45,7 +49,7 @@ function createTable(scene: THREE.Scene): void {
 }
 
 /** Silla monobloc blanca. `lift` permite apilarlas. */
-function createChair(scene: THREE.Scene, cx: number, cz: number, yaw: number, lift = 0): void {
+function createChair(scene: THREE.Object3D, cx: number, cz: number, yaw: number, lift = 0): void {
   const chair = new THREE.Group();
   const plastic = std(0xf1f0ea, 0.55);
   put(chair, new THREE.BoxGeometry(0.46, 0.035, 0.44), plastic, [0, 0.44, 0]);
@@ -63,7 +67,7 @@ function createChair(scene: THREE.Scene, cx: number, cz: number, yaw: number, li
   scene.add(chair);
 }
 
-function createTableware(scene: THREE.Scene): void {
+function createTableware(scene: THREE.Object3D): void {
   const { x, z, width, top } = FAMILY_TABLE;
   const y = top + 0.026;
   // Platos y vasos frente a cada silla.

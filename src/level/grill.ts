@@ -51,6 +51,14 @@ export function createGrill(scene: THREE.Scene, clickable: THREE.Object3D[]) {
   scene.add(emberBackstop);
   mark(emberBackstop, 'grill-cell', clickable);
 
+  for(const sideX of [left - 0.08, left + width + 0.08]) {
+    const emberSide = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.31, depth + 0.28), emberBedMat);
+    emberSide.position.set(sideX, ASADOR_LAYOUT.hearthTop + 0.155, front - depth / 2 - 0.03);
+    emberSide.userData.emberBed = true;
+    scene.add(emberSide);
+    mark(emberSide, 'grill-cell', clickable);
+  }
+
   for(let i = 0;i <= 17;i++) box(scene, [0.025, 0.025, 2.10], [-1.26 + i * 0.148, 1.15, -4.55], 0x363b39, false);
   for(let i = 0;i < 9;i++) box(scene, [2.58, 0.021, 0.022], [0, 1.152, -5.51 + i * 0.24], 0x363b39, false);
   return { cellMeshes, coalMeshes, cellPosition };

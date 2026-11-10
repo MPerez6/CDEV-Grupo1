@@ -205,10 +205,11 @@ export class BrazierModel {
     return true;
   }
   takeFromTray(): DroppedPiece | null {
-    const index = this.tray.findIndex(p => (p.state === 'immature' ? p.fuel.ember : p.ember).massG > 0);
+    const readyIdx = this.tray.findIndex(p => p.state === 'ready' && p.ember.massG > 0);
+    const index = readyIdx >= 0 ? readyIdx : this.tray.findIndex(p => (p.state === 'immature' ? p.fuel.ember : p.ember).massG > 0);
     const piece = index < 0 ? null : this.tray.splice(index, 1)[0];
     if (!piece) this.lastEvent = 'No hay brasas caídas para recoger.';
-    else this.lastEvent = piece.state === 'ready' ? 'Brasas rojas recogidas con la pala.' : 'Fragmento inmaduro: devolvelo al brasero.';
+    else this.lastEvent = piece.state === 'ready' ? 'Brasas rojas recogidas con la pala.' : 'Brasas recogidas con la pala (podés llevarlas a la parrilla o devolverlas al brasero).';
     return piece;
   }
   returnImmature(piece: DroppedPiece): boolean {

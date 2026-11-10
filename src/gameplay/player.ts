@@ -48,7 +48,7 @@ export const AIM_ASSIST_RINGS = [0.021, 0.042];
 const AIM_ASSIST_RAYS = 8;
 
 function candidatesFor(clickable: readonly THREE.Object3D[], activeTool: number, ctx: AimContext): THREE.Object3D[] {
-  // Con la pala (1) o el atizador (3) se apunta directo al piso refractario bajo la parrilla sin que las carnes arriba tapen el hogar.
+  // Con la pala (1) o el atizador (3) se apunta al hogar bajo la parrilla (o a las celdas de la parrilla como respaldo) sin que las carnes tapen.
   const hearthTool = activeTool === 1 || activeTool === 3;
   return clickable.filter(object => {
     const kind = object.userData.kind;
@@ -56,27 +56,41 @@ function candidatesFor(clickable: readonly THREE.Object3D[], activeTool: number,
       && !(kind === 'tinder-pad' && activeTool !== 0)
       && !(kind === 'tray' && activeTool === 0)
       && !(hearthTool && kind === 'meat')
-      && !(hearthTool && kind === 'grill-cell' && !object.userData.emberBed)
       && !(!hearthTool && object.userData.emberBed)
       && !(activeTool === 2 && ctx.carryingMeat === true && kind === 'meat')
       // La tabla solo sirve para devolver la pieza que llevás en la pinza.
       && !(kind === 'board' && ctx.carryingMeat !== undefined && !(activeTool === 2 && ctx.carryingMeat))
+      // El plato solo se apunta cuando llevás un corte en la pinza para servirlo.
+      && !(kind === 'plate' && ctx.carryingMeat !== undefined && !(activeTool === 2 && ctx.carryingMeat))
       && !(activeTool === 1 && ctx.shovelLoaded === false && kind === 'brazier')
       && !(activeTool === 1 && ctx.shovelLoaded === true && kind === 'tray');
   });
+}
+
+function pickIntersection(hits: readonly THREE.Intersection[], activeTool: number): THREE.Intersection | undefined {
+  if(hits.length === 0) return undefined;
+  const hearthTool = activeTool === 1 || activeTool === 3;
+  if(hearthTool) {
+    const emberBedHit = hits.find(h => h.object.userData.emberBed && h.distance <= 5.0);
+    if(emberBedHit) return emberBedHit;
+  }
+  return hits[0];
 }
 
 function targetFromHit(hit: THREE.Intersection | undefined, direction: THREE.Vector3, activeTool: number): InteractionTarget | null {
   if(!hit) return null;
   const maxDistance = hit.object.userData.kind === 'grill-cell' ? 5.0 : 3.5;
   if(hit.distance > maxDistance) return null;
-  if(hit.object.userData.emberBed) return resolveEmberBedTarget(hit.point, direction, activeTool === 3);
+  const hearthTool = activeTool === 1 || activeTool === 3;
+  if(hit.object.userData.emberBed || (hearthTool && hit.object.userData.kind === 'grill-cell')) {
+    return resolveEmberBedTarget(hit.point, direction, activeTool === 3);
+  }
   return { kind: hit.object.userData.kind as TargetKind, index: hit.object.userData.index, meatId: hit.object.userData.meatId };
 }
 
 export function selectTargetFromRay(raycaster: THREE.Raycaster, clickable: readonly THREE.Object3D[], activeTool: number, ctx: AimContext = {}): InteractionTarget | null {
   const candidates = candidatesFor(clickable, activeTool, ctx);
-  const direct = targetFromHit(raycaster.intersectObjects(candidates, false)[0], raycaster.ray.direction, activeTool);
+  const direct = targetFromHit(pickIntersection(raycaster.intersectObjects(candidates, false), activeTool), raycaster.ray.direction, activeTool);
   if(direct || ctx.carryingMeat === undefined) return direct;
   // Asistencia: probar rayos levemente desviados, del anillo más chico al más grande; gana el impacto más cercano.
   const origin = raycaster.ray.origin, dir = raycaster.ray.direction;
@@ -92,7 +106,7 @@ export function selectTargetFromRay(raycaster: THREE.Raycaster, clickable: reado
       const a = (i / AIM_ASSIST_RAYS) * Math.PI * 2;
       const d = dir.clone().addScaledVector(u, Math.cos(a) * radius).addScaledVector(v, Math.sin(a) * radius).normalize();
       probe.set(origin, d);
-      const hit = probe.intersectObjects(candidates, false)[0];
+      const hit = pickIntersection(probe.intersectObjects(candidates, false), activeTool);
       if(hit && targetFromHit(hit, d, activeTool) && (!best || hit.distance < best.hit.distance)) best = { hit, dir: d };
     }
     if(best) return targetFromHit(best.hit, best.dir, activeTool);

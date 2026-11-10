@@ -79,8 +79,16 @@ export function createAsador(scene: THREE.Scene, clickable: THREE.Object3D[], ad
     cube([0.341, 0.018, 0.348], [-3.46 + x * 0.35, 0.823, -5.60 + z * 0.358], tileMaterial);
   }
 
-  // Campana de mampostería: abierta por abajo, sin caños, cadenas ni regulación.
+  // Campana de mampostería con viga frontal de quebracho, herrajes de hierro y sombrerete criollo.
   cube([5.80, 0.20, 0.24], [-1.0, 2.44, -3.23], concrete);
+  const quebrachoBeam = new THREE.MeshStandardMaterial({ color: 0x4e321d, roughness: 0.82 });
+  const brassStud = new THREE.MeshStandardMaterial({ color: 0xc89d4c, roughness: 0.35, metalness: 0.8 });
+  cube([5.84, 0.16, 0.05], [-1.0, 2.44, -3.10], quebrachoBeam);
+  for(const bx of [-3.72, -1.0, 1.72]) {
+    cube([0.08, 0.20, 0.07], [bx, 2.44, -3.095], iron);
+    cube([0.025, 0.025, 0.08], [bx, 2.48, -3.085], brassStud);
+    cube([0.025, 0.025, 0.08], [bx, 2.40, -3.085], brassStud);
+  }
   const hoodGeometry = new THREE.BufferGeometry();
   hoodGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
     -3.9, 2.54, -3.11, 1.9, 2.54, -3.11, 1.9, 2.54, -6.0, -3.9, 2.54, -6.0,
@@ -97,6 +105,14 @@ export function createAsador(scene: THREE.Scene, clickable: THREE.Object3D[], ad
   scene.add(hood);
   cube([2.27, 0.15, 1.59], [-1.0, 3.66, -5.01], concrete);
   cube([1.15, 1.20, 1.10], [-1.0, 4.25, -5.10], concrete);
+  // Sombrerete criollo sobre el conducto de la chimenea
+  cube([1.28, 0.08, 1.22], [-1.0, 4.88, -5.10], edgeMaterial);
+  for(const cx of [-1.46, -0.54]) {
+    for(const cz of [-5.52, -4.68]) {
+      cube([0.12, 0.28, 0.12], [cx, 5.06, cz], edgeMaterial);
+    }
+  }
+  cube([1.36, 0.09, 1.30], [-1.0, 5.24, -5.10], concrete);
 
   const log = (parent: THREE.Object3D, x: number, y: number, z: number, radius: number, length: number, seed: number) => {
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.91, radius, length, 11), [wood, endWood, endWood]);

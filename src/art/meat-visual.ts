@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import type { MeatModel, Side } from '../sim/meat.ts';
 import { createMatambreVisual } from './matambre-visual.ts';
 import { createVacioVisual } from './vacio-visual.ts';
+import { createChorizoVisual } from './chorizo-visual.ts';
+import { createMorcillaVisual } from './morcilla-visual.ts';
+import { createCostillaVisual } from './costilla-visual.ts';
+import { createFaldaVisual } from './falda-visual.ts';
 
 export type MeatVisual = { group: THREE.Group; pickMeshes: THREE.Mesh[]; update: () => void };
 
@@ -9,6 +13,11 @@ export type MeatVisual = { group: THREE.Group; pickMeshes: THREE.Mesh[]; update:
 export function createMeatVisual(meat: MeatModel, scaleX: number, scaleZ: number): MeatVisual {
   if(meat.definition.kind === 'matambre') return createMatambreVisual(meat, scaleX, scaleZ);
   if(meat.definition.kind === 'vacio') return createVacioVisual(meat, scaleX, scaleZ);
+  if(meat.definition.kind === 'chorizo') return createChorizoVisual(meat, scaleX, scaleZ);
+  if(meat.definition.kind === 'morcilla') return createMorcillaVisual(meat, scaleX, scaleZ);
+  if(meat.definition.kind === 'costilla') return createCostillaVisual(meat, scaleX, scaleZ);
+  if(meat.definition.kind === 'falda') return createFaldaVisual(meat, scaleX, scaleZ);
+
   const d = meat.definition, size = meat.dimensions;
   const group = new THREE.Group(), projection = new THREE.Group(), orientation = new THREE.Group(), body = new THREE.Group();
   group.name = `meat-${d.kind}-${meat.id}`;
