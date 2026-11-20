@@ -4,6 +4,7 @@ import type { FuelKind } from '../sim/embers.ts';
 import type { InteractionTarget } from './targets.ts';
 import { TOOL_NAMES } from './tools.ts';
 import { MEAT_CATALOG } from '../sim/meatCatalog.ts';
+import { SEASONINGS, SEASONING_LABELS, type Seasoning } from '../sim/seasoning.ts';
 import { donenessLabel, estimateOrderTip } from '../ai/client-brain.ts';
 
 export type ToolAnimationEvent =
@@ -27,6 +28,11 @@ export type ToolAnimationDetail = {
   dirX?: number;
   dirZ?: number;
 };
+export type PreparationTool = { kind: 'knife' } | { kind: 'seasoning'; seasoning: Seasoning };
+
+export function preparationToolName(tool: PreparationTool): string {
+  return tool.kind === 'knife' ? 'Cuchillo' : SEASONING_LABELS[tool.seasoning];
+}
 
 function cellCenterM(index: number): { x: number; z: number } {
   const col = ((index % CONFIG.gridColumns) + CONFIG.gridColumns) % CONFIG.gridColumns;
@@ -45,7 +51,14 @@ export function createGameplay(
   ambient: { toggleRadio?: () => string; petDog?: () => string } = {},
 ) {
   let activeTool = 0;
+  let preparationTool: PreparationTool | null = null;
   function notify(message: string): void { world.message = message; onMessage(message); }
+  function selectPreparationTool(tool: PreparationTool): void {
+    if(world.carriedMeatId !== null) return notify('Apoyá primero el corte sobre la tabla.');
+    preparationTool = tool;
+    const action = tool.kind === 'knife' ? 'dividirla en dos' : 'condimentarla';
+    notify(`${preparationToolName(tool)}: mantené clic y arrastrá sobre la carne de la tabla para ${action}. 3 para volver a la pinza.`);
+  }
   function idleClickFeedback(): void {
     if(activeTool === 0) onToolAction('lighter-flick');
     else if(activeTool === 1) onToolAction('shovel-tap');
@@ -76,7 +89,20 @@ export function createGameplay(
         world.brazier.addTinder();
         notify(world.brazier.lastEvent);
         break;
+      case 'fridge-door':
+        world.toggleFridge();
+        notify(world.message);
+        break;
+      case 'seasoning': {
+        const seasoning = target.index === undefined ? undefined : SEASONINGS[target.index];
+        if(seasoning) selectPreparationTool({ kind: 'seasoning', seasoning });
+        break;
+      }
+      case 'prep-knife':
+        selectPreparationTool({ kind: 'knife' });
+        break;
       case 'meat':
+        if(preparationTool) return notify('Volvé a la pinza con 3 para recoger la carne.');
         if(activeTool !== 2) return notify('Equipá la pinza (3) para manipular la carne.');
         onToolAction(world.takeMeat(target.meatId as number) ? 'tongs-grab' : 'tongs-clack');
         notify(world.message);
@@ -131,6 +157,7 @@ export function createGameplay(
     }
   }
   function primaryAction(target: InteractionTarget | null): void {
+    if(preparationTool) return;
     if(!target) {
       idleClickFeedback();
       return notify('Apuntá a un objeto cercano.');
@@ -198,6 +225,15 @@ export function createGameplay(
 
   return {
     interact, primaryAction, get activeTool(): number { return activeTool; },
+    get preparationTool(): PreparationTool | null { return preparationTool; },
+    applyPreparation(target: InteractionTarget): boolean {
+      if(!preparationTool || world.carriedMeatId !== null || target.kind !== 'meat' || target.meatId === undefined
+        || world.meatById(target.meatId)?.location !== 'board') return false;
+      const applied = preparationTool.kind === 'knife' ? world.cutMeatOnBoard(target.meatId)
+        : world.seasonMeat(preparationTool.seasoning, target.meatId);
+      notify(world.message);
+      return applied;
+    },
     rakeEmbers(fromTarget: InteractionTarget | null, toTarget: InteractionTarget | null): boolean {
       if(activeTool !== 3 || fromTarget?.kind !== 'grill-cell' || toTarget?.kind !== 'grill-cell') return false;
       if(!fromTarget.emberPointM || !toTarget.emberPointM) return false;
@@ -218,18 +254,19 @@ export function createGameplay(
     equip(index: number): void {
       if(!Number.isInteger(index) || index < 0 || index >= TOOL_NAMES.length) return;
       const changed = activeTool !== index;
+      preparationTool = null;
       activeTool = index;
       if(changed) onToolAction('equip');
       notify(`Herramienta equipada: ${TOOL_NAMES[activeTool]}.`);
     },
     flip(target: InteractionTarget | null): void {
-      if(activeTool !== 2 || target?.kind !== 'meat' || world.carriedMeatId !== null)
+      if(preparationTool || activeTool !== 2 || target?.kind !== 'meat' || world.carriedMeatId !== null)
         return notify('Apuntá a una carne en la parrilla con la pinza equipada (3).');
       if(world.flipMeat(target.meatId as number)) onToolAction('tongs-flip');
       notify(world.message);
     },
     rotate(target: InteractionTarget | null): void {
-      if(activeTool !== 2) return;
+      if(preparationTool || activeTool !== 2) return;
       const id = world.carriedMeatId ?? target?.meatId;
       if(typeof id === 'number') {
         if(world.rotateMeat(id)) onToolAction('tongs-rotate');

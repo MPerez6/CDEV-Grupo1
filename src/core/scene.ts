@@ -11,6 +11,8 @@ import { createToolViews } from '../art/tool-views.ts';
 import { createClientViews } from '../ai/clients.ts';
 import { createRestaurante } from '../level/restaurante.ts';
 import { createSky } from '../level/sky.ts';
+import { createFridge } from '../level/fridge.ts';
+import { createPrepTable } from '../level/prep-table.ts';
 
 /** Compone los módulos visuales; no calcula física ni procesa entradas. */
 export function createScene() {
@@ -28,6 +30,8 @@ export function createScene() {
   createPatioLighting(scene);
   const sky = createSky(scene);
   createPatio(scene, clickable);
+  createPrepTable(scene, clickable);
+  const fridge = createFridge(scene, clickable);
   const grill = createGrill(scene, clickable);
   const brazier = createBrazier(scene, clickable, { position: ASADOR_LAYOUT.brazierPosition, scale: ASADOR_LAYOUT.brazierScale, hearth: false });
   const embers = createGrillEmbers(grill.coalMeshes);
@@ -57,6 +61,7 @@ export function createScene() {
         doorPivot.rotation.y = world.clients.doorOpenRatio * 1.45;
       }
       sky.update(elapsedReal);
+      fridge.update(world.fridgeOpen, elapsedReal);
       brazier.updateVisuals(world, elapsedReal);
       embers.update(world, elapsedReal);
       tools.update(world, activeTool, elapsedReal);

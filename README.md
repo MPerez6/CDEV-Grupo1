@@ -6,7 +6,9 @@ Proyecto integrador del Grupo 1 de **Creatividad y Desarrollo de Entornos Virtua
 
 **Organización modular — 29/10/2026:** el código se divide en base técnica (`core`), simulación (`sim`), jugabilidad (`gameplay`), escenario (`level`), modelos/materiales (`art`), iluminación (`lighting`), efectos (`effects`), sonido (`audio`) e interfaz (`ui`). Cada módulo tiene un README. Consultá [ARQUITECTURA_MODULAR.md](ARQUITECTURA_MODULAR.md) para responsabilidades sugeridas del equipo, contratos, archivos a editar y pruebas. El punto de entrada sigue siendo `src/main.ts`; los comandos y las URL de las muestras se conservan. Validación en [MODULARIZACION_2026_10_29.md](MODULARIZACION_2026_10_29.md).
 
-Es un **prototipo de entrenamiento** para comprobar encendido, brasas y cocción de **matambre, vacío, tira de asado, falda, chorizo y morcilla**, con cinco capas térmicas y estado independiente por pieza. No es todavía un juego terminado. No contiene clientes, heladera, modelos definitivos ni guardado de partida.
+Es un **prototipo con modo Entrenamiento y modo Clientes** para comprobar encendido, brasas y cocción de **matambre, vacío, tira de asado, falda, chorizo y morcilla**, con cinco capas térmicas y estado independiente por pieza. Los seis cortes se guardan en una heladera y se preparan en la mesa junto al asador.
+
+**Ritmo de servicio — 12/11/2026:** fuego y cocción a ×6; paciencia de 10 a 20 minutos de juego activo según el pedido. El brasero empieza vacío. Cargá combustible apuntando directamente al depósito. Ver [prueba de tiempos y preparación](docs/PREPARACION_Y_RITMO.md).
 
 **Muestra visual del matambre — 22/10/2026:** nueva silueta basada en las fotos del equipo, volumen con bordes afinados, fibras y membranas visibles, transición a dorado y carbonización por cara. Para revisar el material de cerca, con el servidor iniciado abrí `/matambre-preview.html`: permite comparar crudo/dorado, cambiar a quemado, mirar la otra cara y orbitar con el mouse. Los botones de esa muestra son estados visuales de ejemplo, separados de la partida. El matambre del juego utiliza el mismo modelo, conducido por su estado térmico real. Detalle y recurso generado en [FASE_2_1_MATAMBRE.md](FASE_2_1_MATAMBRE.md).
 
@@ -59,24 +61,24 @@ npm run build
 5. Opcional: equipá **4** y hacé clic sobre el brasero para golpearlo. Si cae carbón negro/rojo, devolvelo al brasero.
 6. Equipá **2**, apuntá a las brasas sobre la mesada bajo la canasta y hacé clic para cargar la pala. Si son brasas listas, clic sobre un sector de parrilla para dispersarlas. Si es un fragmento inmaduro, clic sobre el brasero para devolverlo.
 7. Repetí para distribuir brasas en varios sectores de cocción.
-8. Equipá **3**, acercate a una carne sobre las tablas de la derecha y presioná **E** para levantarla. Hay seis tipos de producto y un segundo vacío para probar piezas iguales.
-9. Apuntá a un sector de parrilla y hacé clic para colocarla. **Q** cambia su orientación. Si no cabe o se superpone, permanece en la pinza.
-10. Apuntá a la pieza y presioná **R** para darla vuelta o rodarla media vuelta si es un embutido. **E** permite retirarla; con la pieza sostenida, **E** sobre una tabla la devuelve a su lugar original.
-11. Colocá varias carnes y alejate: continúan calentándose. Con **F3**, apuntá a una pieza para revisar sus capas, caras y exposición; el panel también lista los centros de todas las piezas.
+8. Abrí la **heladera** con **E** y recogé un corte con **3 + E**. El compartimento se repone al instante con una pieza fría del mismo tipo.
+9. Apoyá el corte en la **mesa del asador** con **E**. Seleccioná sal gruesa, chimichurri, salmuera o el cuchillo con **E**, mantené clic izquierdo y mové la mira sobre la carne. El cuchillo divide una pieza entera en dos porciones. Equipá **3** para volver a la pinza.
+10. Hacé clic en un sector de parrilla para colocar el corte. **Q** lo orienta; **R** lo da vuelta o rueda el embutido. Si no cabe o se superpone, permanece en la pinza.
+11. Retirá el corte con **3 + E**. Podés cortarlo cocido en la mesa para servir una mitad a cada cliente que pidió ese tipo de carne. Usá **F3** para revisar las cinco capas y la exposición al calor.
 
-**Nota de controles:** la primera versión simplifica el transporte de combustible desde los huecos inferiores: E lo incorpora directamente al brasero. Las herramientas y la carne sí utilizan acciones explícitas.
+**Carga de combustible:** apuntá directamente al hueco correspondiente y pulsá **E**. El brasero no se repone solo; las piezas que ya están adentro sí se acomodan cuando caen brasas.
 
 **Asador:** estructura de mampostería con ladrillos interiores y campana, sin caños ni regulación superior. Brasero a la izquierda y parrilla fija a la derecha sobre una mesada común; debajo, cuatro huecos separados para leña gruesa, leña fina, carbón vegetal y una caja con papel/ramitas.
 
 **Brasero:** canasta abierta de varillas de hierro en V, con patas. El carbón y los troncos se ven dentro; el papel y las ramitas aparecen debajo al agregarlos. Al encender, las llamas nacen abajo y alcanzan el combustible a través de las varillas. El papel tiene duración limitada y desaparece al agotarse. La madera encendida mantiene llamas dentro de la canasta; el carbón evoluciona principalmente hacia el rojo vivo. Las brasas maduras caen directamente debajo, sobre la mesada, sin bandeja ni mensajes automáticos. Se consumen también fuera de la canasta y conservan su masa residual al pasarlas a la parrilla. La combustión sigue usando el modelo simplificado provisional.
 
-**Encendido provisional:** cada carga de papel/ramitas dura 300 segundos simulados (30 segundos reales a ×10). Si no logra prender el combustible, se apaga: agregar papel nuevo permite reintentar. La leña grande sola no sostiene el fuego inicial; comenzar con leña pequeña. Los tiempos y umbrales están centralizados en `src/sim/parameters.ts` y requieren calibración de jugabilidad.
+**Encendido provisional:** cada carga de papel/ramitas dura 300 segundos simulados (50 segundos de juego activo a ×6). Si no logra prender el combustible, se apaga: agregar papel nuevo permite reintentar. La leña grande sola no sostiene el fuego inicial; comenzar con leña pequeña. Los tiempos y umbrales están centralizados en `src/sim/parameters.ts` y requieren calibración de jugabilidad.
 
-**Aspecto de las brasas:** cada porción se dibuja con 18–22 fragmentos angulosos de tamaños y orientaciones diferentes, con superficies carbonizadas, zonas rojas y ceniza. Al caer se separan ligeramente y, al depositarlos bajo la parrilla, forman grupos dispersos cercanos, sin discos achatados ni cuadrados de color. Es una mejora visual: cada porción conserva su masa y energía simuladas; dibujar más fragmentos no genera más combustible. El reloj está en ×10; las animaciones mantienen su velocidad normal.
+**Aspecto de las brasas:** cada porción se dibuja con 18–22 fragmentos angulosos de tamaños y orientaciones diferentes, con superficies carbonizadas, zonas rojas y ceniza. Al caer se separan ligeramente y, al depositarlos bajo la parrilla, forman grupos dispersos cercanos. Cada porción conserva su masa y energía simuladas. El reloj está en ×6; las animaciones mantienen su velocidad normal.
 
 **Auditoría de brasas — fase 1:** consumo, potencia y reparto térmico comprobados con pruebas cuantitativas. Las brasas también se consumen durante el transporte en la pala. El reloj usa pasos fijos de 0,25 s simulados y conserva el tiempo pendiente ante frames lentos; ESC y ocultar la pestaña pausan la partida. Resultados, correcciones y validación manual en [AUDITORIA_FASE_1_BRASAS.md](AUDITORIA_FASE_1_BRASAS.md). La fase 2 queda pendiente de validación del equipo.
 
-**Cortes — fase 2 implementada:** catálogo configurable y varias piezas simultáneas. Los cortes planos usan cinco capas de una cara a otra; chorizo y morcilla usan cinco volúmenes radiales desde la envoltura hasta el centro. El calor se pondera por el área real de cada contorno que cubre cada sector; no hay recorte por el rango recomendado. La mesa ampliada es una solución provisional de prueba antes de la heladera. Informe, parámetros y límites en [FASE_2_CORTES.md](FASE_2_CORTES.md). La fase 3 queda pendiente de validación del equipo.
+**Cortes:** catálogo configurable y varias piezas simultáneas. Los cortes planos usan cinco capas de una cara a otra; chorizo y morcilla usan cinco volúmenes radiales desde la envoltura hasta el centro. El calor se pondera por el área real de cada contorno. Informe histórico y parámetros en [FASE_2_CORTES.md](FASE_2_CORTES.md).
 
 **Carga y reposición:** cada pieza ocupa un lugar en una pila de capacidad limitada. El calor del papel alcanza principalmente las piezas inferiores; las encendidas transmiten calor a sus vecinas y a las de arriba. Cada pieza madura en su propio momento y cae todavía con masa combustible. La pila se acomoda, abre espacio y permite agregar carbón o leña nuevos con E en el depósito. La carga nueva empieza fría y prende con el combustible caliente próximo, sin volver a usar papel mientras ese encendido se sostenga. Si no cabe toda una tanda, se agregan solo las piezas que entran. Si no cabe un fragmento devuelto, permanece en la pala.
 
@@ -121,7 +123,7 @@ La pila actual usa 12 espacios repartidos en tres niveles; carbón y leña fina 
 
 | Valor | Estado |
 | --- | --- |
-| Velocidad de reloj ×10 | Prueba de jugabilidad actual |
+| Velocidad de fuego y cocción ×6 | Prueba de jugabilidad actual |
 | Parrilla 90×60 cm virtuales / cuadrícula de 24 sectores | Provisional |
 | Porción de brasas de referencia 50 g | Provisional |
 | Tasa de consumo inicial de 1,2 g/min | Provisional |
@@ -140,8 +142,8 @@ La pila actual usa 12 espacios repartidos en tres niveles; carbón y leña fina 
 1. Refinar agarre y manipulación física de objetos; colisiones detalladas.
 2. Calibrar tiempos y valores térmicos mirando el resultado en pantalla.
 3. Refinar modelos de los seis productos y calibrar sus propiedades térmicas particulares.
-4. Crear heladera y reconocimiento visual de cortes.
-5. Incorporar sistema de clientes, pedidos múltiples, puntos solicitados y reacciones.
+4. Ajustar reposición y stock de la heladera al balance de cada modo.
+5. Afinar pedidos, puntos de cocción y reacciones de los clientes.
 6. Jornada, errores, progresión, ambientación, guardado y pruebas de jugabilidad.
 
 No hace falta cerrar ninguno de estos puntos para empezar a programar. El objetivo del prototipo es **poder probar primero**.

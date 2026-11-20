@@ -169,9 +169,8 @@ export function estimateOrderTip(kind: MeatKind, patienceRatio: number): number 
 export function donenessLabel(doneness: DesiredDoneness, kind: MeatKind): string {
   if(MEAT_CATALOG[kind].precooked) return 'Calentita y sin romper';
   if(MEAT_CATALOG[kind].geometry === 'cylinder') return 'Dorado y caliente';
-  if(doneness === 'jugoso') return 'Jugoso (58–67 °C)';
-  if(doneness === 'a-punto') return 'A punto (68–74 °C)';
-  return 'Bien cocido (75–84 °C)';
+  const [min, max] = CONFIG.clientDelivery.donenessRangesC[doneness];
+  return `${donenessShortLabel(doneness, kind)} (${min}–${max} °C)`;
 }
 
 export function donenessShortLabel(doneness: DesiredDoneness, kind: MeatKind): string {
@@ -194,7 +193,9 @@ export function evaluateDelivery(order: ClientOrder, meat: MeatModel, patienceRa
   const wrongCut = meat.definition.kind !== order.kind;
   const orderedName = MEAT_CATALOG[order.kind].name;
   const servedName = meat.definition.name;
-  const maxBurn = Math.max(meat.burn.a, meat.burn.b, meat.casingDamage.a, meat.casingDamage.b);
+  const surfaceBurn = Math.max(meat.burn.a, meat.burn.b);
+  const casingDamage = Math.max(meat.casingDamage.a, meat.casingDamage.b);
+  const cleanFinish = surfaceBurn < 14 && casingDamage < 14;
   const avgBrown = (meat.brown.a + meat.brown.b) * 0.5;
   const minBrown = Math.min(meat.brown.a, meat.brown.b);
   // Para embutidos consideramos también el calor de las capas exteriores además del núcleo
@@ -205,7 +206,7 @@ export function evaluateDelivery(order: ClientOrder, meat: MeatModel, patienceRa
   const baseTipForCut = CUT_BASE_TIP[order.kind];
 
   // 1. Corte quemado / carbonizado: furia inmediata
-  if(maxBurn >= P.burnedThreshold) {
+  if(meat.isBurned) {
     const gestures: readonly AngerGesture[] = ['rechazo-plato', 'manos-cabeza', 'golpe-mesa'];
     const g = gestures[meat.id % gestures.length];
     return {
@@ -218,7 +219,9 @@ export function evaluateDelivery(order: ClientOrder, meat: MeatModel, patienceRa
       cutBonusPts: 0,
       donenessPts: -30,
       speedBonusPts: 0,
-      feedback: wrongCut
+      feedback: meat.hasSevereCasingDamage && surfaceBurn < P.burnedThreshold && !wrongCut
+        ? `La tripa del ${servedName} quedó demasiado dañada.`
+        : wrongCut
         ? `¡Pedí ${orderedName} y encima me traés un ${servedName} carbonizado!`
         : `¡Esto es carbón puro! Se te quemó todo el ${servedName}, incomible.`,
     };
@@ -274,50 +277,52 @@ export function evaluateDelivery(order: ClientOrder, meat: MeatModel, patienceRa
 
   let pointScore = 0;
   let pointNote = '';
-  let shortComplaint = '😒 Punto errado';
+  let shortComplaint = 'Fuera de punto';
 
   if(meat.definition.precooked) {
-    if(effectiveC >= 48 && centerC <= 85 && maxBurn < 14) {
-      pointScore = 96;
-      pointNote = 'bien calentita y sin romper la tripa';
+    if(effectiveC >= 48 && centerC <= 85) {
+      pointScore = cleanFinish ? 96 : 78;
+      pointNote = cleanFinish ? 'bien calentita y sin romper la tripa' : 'calentita, aunque se tostó un poco de más por fuera';
     } else if(effectiveC >= 32) {
       pointScore = 74;
       pointNote = 'rica, apenas tibia en el centro';
     }
   } else if(meat.definition.geometry === 'cylinder') {
-    if(effectiveC >= 62 && minBrown >= CONFIG.meatBrowningMin * 0.65 && maxBurn < 14) {
-      pointScore = 96;
-      pointNote = 'doradito y jugoso';
+    if(effectiveC >= 62 && minBrown >= CONFIG.meatBrowningMin * 0.65) {
+      pointScore = cleanFinish ? 96 : 78;
+      pointNote = cleanFinish ? 'doradito y jugoso' : 'bien cocido, aunque se tostó un poco de más por fuera';
     } else if(effectiveC >= 48 && avgBrown >= 14) {
       pointScore = 74;
       pointNote = 'rico, aunque le faltó un toque parejo';
     } else {
       pointScore = 48;
       pointNote = 'le faltó un poco de fuego en el centro';
-      shortComplaint = '😒 ¡Faltó fuego!';
+      shortComplaint = 'Le faltó fuego';
     }
   } else {
-    const ranges: Record<DesiredDoneness, [number, number]> = {
-      'jugoso': [54, 67.5],
-      'a-punto': [66, 75.5],
-      'bien-cocido': [74, 85],
-    };
-    const [minTarget, maxTarget] = ranges[order.doneness];
+    const [minTarget, maxTarget] = CONFIG.clientDelivery.donenessRangesC[order.doneness];
+    const distanceC = Math.max(0, minTarget - centerC, centerC - maxTarget);
     const brownBonus = minBrown >= CONFIG.meatBrowningMin ? 14 : avgBrown >= 20 ? 6 : -8;
     const dryPenalty = meat.juiciness < P.dryJuice ? 25 : 0;
 
-    if(centerC >= minTarget && centerC <= maxTarget && dryPenalty === 0) {
+    if(distanceC === 0 && dryPenalty === 0) {
       pointScore = Math.min(100, 88 + brownBonus);
       pointNote = `justo ${donenessShortLabel(order.doneness, order.kind).toLowerCase()}`;
     } else {
-      const distC = centerC < minTarget ? minTarget - centerC : Math.max(0, centerC - maxTarget);
-      pointScore = Math.max(25, Math.round(80 - distC * 3.8 + brownBonus - dryPenalty));
-      if(dryPenalty > 0 || centerC > maxTarget) {
-        pointNote = `te pedí ${donenessShortLabel(order.doneness, order.kind).toLowerCase()} y vino pasado/seco`;
-        shortComplaint = `😠 ¡Pasado! Pedí ${donenessShortLabel(order.doneness, order.kind)}`;
+      const toleranceC = CONFIG.clientDelivery.nearDonenessC;
+      const near = distanceC <= toleranceC && dryPenalty === 0;
+      const score = 80 + brownBonus - distanceC * 3.8 - dryPenalty;
+      pointScore = Math.max(near ? 64 : 25, Math.round(score));
+      const over = centerC > maxTarget;
+      if(dryPenalty > 0) {
+        pointNote = 'quedó seco';
+        shortComplaint = 'Quedó seco';
+      } else if(over) {
+        pointNote = near ? 'se pasó un poco del punto' : 'se pasó del punto que pedí';
+        shortComplaint = 'Pasado de punto';
       } else {
-        pointNote = `te pedí ${donenessShortLabel(order.doneness, order.kind).toLowerCase()} y le faltó cocción`;
-        shortComplaint = `😠 ¡Faltó punto! Pedí ${donenessShortLabel(order.doneness, order.kind)}`;
+        pointNote = near ? 'le faltó un poco de cocción' : 'le faltó cocción para el punto que pedí';
+        shortComplaint = 'Le faltó punto';
       }
     }
   }
@@ -362,14 +367,13 @@ export function evaluateDelivery(order: ClientOrder, meat: MeatModel, patienceRa
   return {
     grade: 'regular',
     reactionKind: 'queja-punto',
-    angerGesture: 'brazos-abiertos',
     shortTitle: shortComplaint,
     scoreDelta: regularScore,
     tipPesos: regularTip,
     cutBonusPts,
     donenessPts: regularScore - cutBonusPts,
     speedBonusPts: 0,
-    feedback: `Mirá que ${pointNote}... Lo como igual porque tengo hambre${regularTip > 0 ? ', te dejo una propina mínima' : ', pero sin propina'}.`,
+    feedback: `Lo acepto, aunque ${pointNote}${regularTip > 0 ? '. Te dejo una propina menor.' : '.'}`,
   };
 }
 
@@ -434,15 +438,15 @@ export type ClientEvent = {
   message: string;
 };
 
-const ORDER_POOL: readonly { kind: MeatKind; doneness: DesiredDoneness; patienceS: number }[] = [
-  { kind: 'chorizo', doneness: 'a-punto', patienceS: 210 },
-  { kind: 'morcilla', doneness: 'a-punto', patienceS: 195 },
-  { kind: 'matambre', doneness: 'a-punto', patienceS: 220 },
-  { kind: 'vacio', doneness: 'jugoso', patienceS: 250 },
-  { kind: 'costilla', doneness: 'a-punto', patienceS: 260 },
-  { kind: 'falda', doneness: 'bien-cocido', patienceS: 230 },
-  { kind: 'vacio', doneness: 'a-punto', patienceS: 250 },
-  { kind: 'costilla', doneness: 'jugoso', patienceS: 250 },
+const ORDER_POOL: readonly Pick<ClientOrder, 'kind' | 'doneness'>[] = [
+  { kind: 'chorizo', doneness: 'a-punto' },
+  { kind: 'morcilla', doneness: 'a-punto' },
+  { kind: 'matambre', doneness: 'a-punto' },
+  { kind: 'vacio', doneness: 'jugoso' },
+  { kind: 'costilla', doneness: 'a-punto' },
+  { kind: 'falda', doneness: 'bien-cocido' },
+  { kind: 'vacio', doneness: 'a-punto' },
+  { kind: 'costilla', doneness: 'jugoso' },
 ];
 
 export class ClientManager {
@@ -699,7 +703,7 @@ export class ClientManager {
     const actor = new ClientActor(id, profile, freeSeat, {
       kind: template.kind,
       doneness: template.doneness,
-      maxPatienceSeconds: template.patienceS,
+      maxPatienceSeconds: CONFIG.clientPatienceRealSeconds[template.kind],
     });
     this.clients.push(actor);
     return actor;

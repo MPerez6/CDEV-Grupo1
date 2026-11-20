@@ -36,12 +36,16 @@ export function createMeatSurfaceGeometry(meat: MeatModel, profile: SurfaceProfi
       const t = THREE.MathUtils.clamp(p.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
       return p.distanceTo(a.clone().addScaledVector(ab, t));
     }));
-    const edge = THREE.MathUtils.smoothstep(distance, 0, settings.edgeBlendM);
+    const cutEdge = meat.portion && Math.abs(p.x + meat.portion.side * w / 2) < 1e-7;
+    const edge = cutEdge ? 1 : THREE.MathUtils.smoothstep(distance, 0, settings.edgeBlendM);
     const ripple = Math.sin(p.x * 71 + Math.sin(p.y * 37)) * Math.sin(p.y * 93 + p.x * 18);
     const y = top ? thickness * (settings.topEdge + (settings.topCenter - settings.topEdge) * edge + ripple * settings.rippleTop * edge)
       : thickness * (settings.bottomCenter + (settings.bottomEdge - settings.bottomCenter) * (1 - edge) + ripple * settings.rippleBottom * edge);
     vertices.push(p.x, y, -p.y);
-    uvs.push(p.x / w + 0.5, 0.5 - p.y / d);
+    const u = p.x / w + 0.5, v = 0.5 - p.y / d;
+    const crop = meat.portion?.uv;
+    uvs.push(crop ? THREE.MathUtils.lerp(crop.u0, crop.u1, u) : u,
+      crop ? THREE.MathUtils.lerp(crop.v0, crop.v1, v) : v);
   }
   const n = points.length, geometry = new THREE.BufferGeometry();
   for(const [a, b, c] of triangles) indices.push(a, c, b);

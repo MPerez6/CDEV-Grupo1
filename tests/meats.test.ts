@@ -8,7 +8,7 @@ import { footprintCoverage, meatFootprint } from '../src/sim/meatFootprint.ts';
 import { SimulationWorld } from '../src/sim/world.ts';
 import { newEmber } from '../src/sim/embers.ts';
 import { createMeatVisual } from '../src/art/meat-visual.ts';
-import { boardPosition, PREP_TABLE_BOUNDS } from '../src/level/layout.ts';
+import { BOARD_CUT_SCALE, PREP_BOARD } from '../src/level/layout.ts';
 
 function near(actual: number, expected: number, tolerance = 1e-8): void {
   assert.ok(Math.abs(actual - expected) < tolerance, `${actual} ≠ ${expected}`);
@@ -165,7 +165,7 @@ test('la envoltura de morcilla se deteriora por exceso de calor y no se repara a
 });
 
 test('huella rectangular pondera exactamente el área intersectada en cada sector', () => {
-  const meat = new MeatModel('costilla');
+  const meat = new MeatModel('chorizo'); // La tira de asado ya usa un contorno irregular.
   meat.positionM = { x: 0.3, z: 0.225 };
   const coverage = footprintCoverage(meat), w = meat.dimensions.widthM, d = meat.dimensions.depthM;
   const polygon = meatFootprint(meat);
@@ -220,7 +220,8 @@ test('dos vacíos mantienen estados distintos y siguen calentándose sin interve
 });
 
 test('recoger, orientar, depositar y devolver no reinician el estado de una pieza', () => {
-  const world = new SimulationWorld();
+  const world = new SimulationWorld('fridge');
+  world.toggleFridge();
   const meat = world.addMeat('chorizo'); heat(meat, 7000, 300); meat.flip();
   const before = thermalState(meat);
   assert.ok(world.takeMeat(meat.id)); assert.ok(world.rotateMeat(meat.id));
@@ -282,29 +283,8 @@ test('geometrías tienen volumen, selección por identidad y representación sin
     const ray = new THREE.Raycaster(new THREE.Vector3(0, 2, 0), new THREE.Vector3(0, -1, 0));
     assert.equal(ray.intersectObjects(view.pickMeshes, false)[0]?.object.userData.meatId, meat.id);
     assert.equal(JSON.stringify(meat), before);
-    const p = boardPosition(MEAT_KINDS.indexOf(kind));
-    assert.ok(p.x - size.x / 2 >= PREP_TABLE_BOUNDS.x0 && p.x + size.x / 2 <= PREP_TABLE_BOUNDS.x1);
-    assert.ok(p.z - size.z / 2 >= PREP_TABLE_BOUNDS.z0 && p.z + size.z / 2 <= PREP_TABLE_BOUNDS.z1);
-  }
-});
-
-test('las siete piezas de la mesa pueden seleccionarse desde el frente a distancia de interacción', () => {
-  const world = new SimulationWorld();
-  for (const kind of MEAT_KINDS.slice(1)) world.addMeat(kind);
-  world.addMeat('vacio');
-  const scene = new THREE.Scene();
-  const meshes: THREE.Mesh[] = [];
-  for (const meat of world.meats) {
-    const view = createMeatVisual(meat, 2.6 / 0.9, 2 / 0.6);
-    view.update(); view.group.position.copy(boardPosition(meat.boardSlot)); scene.add(view.group);
-    meshes.push(...view.pickMeshes);
-  }
-  scene.updateMatrixWorld(true);
-  for (const meat of world.meats) {
-    const p = boardPosition(meat.boardSlot), origin = new THREE.Vector3(p.x, 1.68, PREP_TABLE_BOUNDS.z1 + 0.4);
-    const target = p.clone().add(new THREE.Vector3(0, meat.definition.thicknessM * 1.5, 0));
-    const ray = new THREE.Raycaster(origin, target.sub(origin).normalize(), 0, 3.4);
-    assert.equal(ray.intersectObjects(meshes, false)[0]?.object.userData.meatId, meat.id, meat.definition.name);
+    assert.ok(size.x * BOARD_CUT_SCALE <= PREP_BOARD.width, meat.definition.name);
+    assert.ok(size.z * BOARD_CUT_SCALE <= PREP_BOARD.depth, meat.definition.name);
   }
 });
 

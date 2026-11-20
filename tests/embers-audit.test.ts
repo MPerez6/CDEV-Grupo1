@@ -251,14 +251,14 @@ test('energía integrada de la cuadrícula más pérdidas coincide con el combus
   near(receivedJ + deliveryLossJ + boundaryLossJ, combustionJ, 1e-5);
 });
 
-test('una brasa agotada en la pala no agrega una fuente de calor al depositarla', () => {
+test('intentar depositar una brasa agotada no agrega una fuente de calor', () => {
   const world = new SimulationWorld();
   const ember = newEmber(50);
   world.carried = { id: ember.id, state: 'ready', ember };
   world.tick(100000);
   assert.equal(ember.massG, 0);
   near(ember.ashG, 2.5);
-  assert.ok(world.depositEmber(7));
+  assert.equal(world.depositEmber(7), false);
   world.tick(0.25);
   assert.equal(world.grill.emberCount, 0);
   assert.ok(world.grill.fluxWm2.every(flux => flux === 0));

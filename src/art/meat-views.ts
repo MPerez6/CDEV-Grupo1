@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { CONFIG } from '../sim/parameters.ts';
 import type { SimulationWorld } from '../sim/world.ts';
-import { GRILL_LAYOUT, boardPosition } from '../level/layout.ts';
+import { BOARD_CUT_SCALE, FRIDGE_CUT_SCALE, GRILL_LAYOUT, boardPosition, fridgePosition } from '../level/layout.ts';
 import { CLIENT_SEATS } from '../ai/client-brain.ts';
 import { createMeatVisual, type MeatVisual } from './meat-visual.ts';
+import { addSeasoningMarks } from './meat-seasoning.ts';
+import type { Seasoning } from '../sim/seasoning.ts';
 
 export function createMeatViews(
   scene: THREE.Scene,
@@ -13,8 +15,28 @@ export function createMeatViews(
 ) {
   const { left, front, width, depth } = GRILL_LAYOUT;
   const meatVisuals = new Map<number, MeatVisual>();
+  const marks = new Map<number, Map<Seasoning, THREE.Points[]>>();
   return {
     views: meatVisuals, update(world: SimulationWorld): void {
+      const activeIds = new Set(world.meats.map(meat => meat.id));
+      for (const [id, view] of meatVisuals) {
+        if (activeIds.has(id)) continue;
+        for (const mesh of view.pickMeshes) {
+          const index = clickable.indexOf(mesh);
+          if (index !== -1) clickable.splice(index, 1);
+        }
+        const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();
+        view.group.traverse(object => {
+          if (!(object instanceof THREE.Mesh || object instanceof THREE.Points)) return;
+          geometries.add(object.geometry);
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
+        });
+        for (const geometry of geometries) geometry.dispose();
+        for (const material of materials) material.dispose(); // Los atlas se comparten entre cortes.
+        view.group.removeFromParent();
+        meatVisuals.delete(id);
+        marks.delete(id);
+      }
       for(const meat of world.meats) {
         let view = meatVisuals.get(meat.id);
         if(!view) {
@@ -35,13 +57,37 @@ export function createMeatViews(
           const p = CLIENT_SEATS[meat.servedSeat].platePos;
           view.group.position.set(p.x, p.y, p.z);
         }
-        else view.group.position.copy(boardPosition(meat.boardSlot));
+        else if(meat.location === 'fridge') view.group.position.copy(fridgePosition(meat.definition.kind));
+        else {
+          view.group.position.copy(boardPosition());
+          if (meat.portion) {
+            const { centerM, side } = meat.portion;
+            view.group.position.x += centerM.x * width / CONFIG.grillWidthM * BOARD_CUT_SCALE + side * 0.035;
+            view.group.position.z -= centerM.z * depth / CONFIG.grillDepthM * BOARD_CUT_SCALE * (meat.faceDown === 'a' ? 1 : -1);
+          }
+        }
         view.update();
+        for (const part of view.pickMeshes) part.userData.onPrepBoard = meat.location === 'board';
         if(meat.location === 'served') {
           view.group.scale.setScalar(0.52);
           for(const part of view.pickMeshes) part.userData.enabled = false;
         } else if(meat.location === 'board') {
-          view.group.scale.setScalar(0.76);
+          view.group.scale.setScalar(BOARD_CUT_SCALE);
+        } else if(meat.location === 'fridge') {
+          view.group.scale.setScalar(FRIDGE_CUT_SCALE);
+          for(const part of view.pickMeshes) part.userData.enabled = world.fridgeOpen;
+        }
+        if (meat.seasonings.length || marks.has(meat.id)) {
+          const applied = marks.get(meat.id) ?? new Map<Seasoning, THREE.Points[]>();
+          marks.set(meat.id, applied);
+          for (const [seasoning, points] of applied) {
+            if (meat.seasonings.includes(seasoning)) continue;
+            for (const dot of points) { dot.removeFromParent(); dot.geometry.dispose(); (dot.material as THREE.PointsMaterial).dispose(); }
+            applied.delete(seasoning);
+          }
+          for (const seasoning of meat.seasonings) {
+            if (!applied.has(seasoning)) applied.set(seasoning, addSeasoningMarks(view, seasoning));
+          }
         }
       }
     }

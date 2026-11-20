@@ -1,9 +1,11 @@
 import { BrazierModel, consumeEmber, HeatGrid, isFuelBurning, type DroppedPiece, type EmberPiece } from './embers.ts';
-import { MeatModel } from './meat.ts';
+import { MeatModel, type MeatStorage } from './meat.ts';
 import { CONFIG } from './parameters.ts';
 import { type MeatKind } from './meatCatalog.ts';
 import { footprintCoverage, polygonOverlapArea, meatFootprint } from './meatFootprint.ts';
 import { ClientManager, type ClientEvent } from '../ai/client-brain.ts';
+import { SEASONING_LABELS, type Seasoning } from './seasoning.ts';
+import { halveMeat } from './meatPortions.ts';
 
 export type PokerStrikeInput = {
   pointM: { x: number; z: number };
@@ -23,12 +25,24 @@ export class SimulationWorld {
   public clients = new ClientManager();
   public readonly meats: MeatModel[] = [new MeatModel()];
   public carriedMeatId: number | null = null;
+  public fridgeOpen = false;
+  private readonly freshMeatLocation: MeatStorage;
   private coverageCache = new Map<number, { key: string; coverage: ReturnType<typeof footprintCoverage> }>();
   // Alias del matambre original para herramientas de diagnóstico y pruebas anteriores.
-  get meat(): MeatModel { return this.meats[0]; }
+  get meat(): MeatModel { return this.meats.find(m => m.definition.kind === 'matambre') ?? this.meats[0]; }
   public carried: DroppedPiece | null = null;
   public simSeconds = 0;
   public message = 'Cargá carbón o leña en el brasero.';
+
+  constructor(freshMeatLocation: MeatStorage = 'board') {
+    this.freshMeatLocation = freshMeatLocation;
+    this.meat.location = freshMeatLocation;
+  }
+
+  toggleFridge(): void {
+    this.fridgeOpen = !this.fridgeOpen;
+    this.message = this.fridgeOpen ? 'Heladera abierta. Elegí un corte con la pinza (3 + E).' : 'Cerraste la heladera.';
+  }
 
   tick(dtSimSeconds: number): void {
     if (!Number.isFinite(dtSimSeconds) || dtSimSeconds <= 0) return;
@@ -43,7 +57,7 @@ export class SimulationWorld {
   }
   addMeat(kind: MeatKind): MeatModel {
     const meat = new MeatModel(kind);
-    meat.boardSlot = this.meats.length;
+    meat.location = this.freshMeatLocation;
     this.meats.push(meat);
     return meat;
   }
@@ -60,10 +74,13 @@ export class SimulationWorld {
   }
   takeMeat(id: number): boolean {
     const meat = this.meatById(id);
-    if (!meat || this.carriedMeatId !== null) { this.message = 'La pinza ya tiene una pieza o no hay carne disponible.'; return false; }
+    if (!meat || meat.location === 'served' || this.carriedMeatId !== null) { this.message = 'La pinza ya tiene una pieza o no hay carne disponible.'; return false; }
+    if (meat.location === 'fridge' && !this.fridgeOpen) { this.message = 'Abrí la heladera con E para sacar el corte.'; return false; }
+    const fromFridge = meat.location === 'fridge';
     meat.location = 'carried';
     this.carriedMeatId = id;
-    this.message = `${meat.definition.name} en la pinza. Clic sobre la parrilla para colocarlo; Q para orientar.`;
+    if (fromFridge) this.addMeat(meat.definition.kind);
+    this.message = `${meat.displayName} en la pinza. Apoyalo en la mesa para preparar o en la parrilla para cocinar.`;
     return true;
   }
   private fits(meat: MeatModel, center: { x: number; z: number }, turns: number): boolean {
@@ -86,17 +103,41 @@ export class SimulationWorld {
     meat.positionM = center;
     meat.location = 'grill';
     this.carriedMeatId = null;
-    this.message = `${meat.definition.name} en la parrilla. R para ${meat.definition.geometry === 'cylinder' ? 'rodar' : 'dar vuelta'}; Q para orientar.`;
+    this.message = `${meat.displayName} en la parrilla. R para ${meat.definition.geometry === 'cylinder' ? 'rodar' : 'dar vuelta'}; Q para orientar.`;
     return true;
   }
   returnMeatToBoard(): boolean {
     const meat = this.carriedMeatId === null ? undefined : this.meatById(this.carriedMeatId);
     if (!meat) return false;
+    if (this.meats.some(m => m.location === 'board'
+      && (!meat.portion || m.portion?.sourceId !== meat.portion.sourceId || m.portion.side === meat.portion.side))) {
+      this.message = 'La tabla está ocupada. Retirá las piezas antes de apoyar otro corte.';
+      return false;
+    }
     meat.location = 'board';
     meat.servedSeat = null;
     meat.quarterTurns = 0;
     this.carriedMeatId = null;
-    this.message = `${meat.definition.name} sobre su tabla; conserva su estado.`;
+    this.message = `${meat.displayName} en la mesa. Elegí un condimento o el cuchillo con E.`;
+    return true;
+  }
+  seasonMeat(seasoning: Seasoning, meatId: number): boolean {
+    const meat = this.meatById(meatId);
+    if (!meat || meat.location !== 'board') return false;
+    const label = SEASONING_LABELS[seasoning];
+    if (meat.seasonings.includes(seasoning)) { this.message = `${meat.displayName} ya tiene ${label.toLowerCase()}.`; return false; }
+    meat.seasonings.push(seasoning);
+    this.message = `Agregaste ${label.toLowerCase()} a ${meat.displayName}.`;
+    return true;
+  }
+  cutMeatOnBoard(meatId: number): boolean {
+    const meat = this.meatById(meatId);
+    if (!meat || meat.location !== 'board') return false;
+    const halves = halveMeat(meat);
+    if (!halves) { this.message = 'Ese corte ya está dividido en dos porciones.'; return false; }
+    this.meats.splice(this.meats.indexOf(meat), 1, ...halves);
+    this.coverageCache.delete(meat.id);
+    this.message = `Cortaste ${meat.definition.name} en dos porciones. Equipá la pinza (3) para retirar cada mitad.`;
     return true;
   }
   serveMeatToSeat(seatIndex: number): boolean {
@@ -121,9 +162,18 @@ export class SimulationWorld {
     const { events, finishedMeatIds } = this.clients.update(realDt);
     for (const meatId of finishedMeatIds) {
       const m = this.meatById(meatId);
-      if (m) m.resetToFreshBoard();
+      if (m) this.finishServing(m);
     }
     return events;
+  }
+  resetClients(enabled: boolean): void {
+    this.clients.reset(enabled);
+    for (const meat of [...this.meats]) if (meat.location === 'served') this.finishServing(meat);
+  }
+  private finishServing(meat: MeatModel): void {
+    this.coverageCache.delete(meat.id);
+    if (this.freshMeatLocation === 'fridge' || meat.portion) this.meats.splice(this.meats.indexOf(meat), 1);
+    else meat.resetFresh('board');
   }
   flipMeat(id: number): boolean {
     const meat = this.meatById(id);
@@ -139,7 +189,7 @@ export class SimulationWorld {
   }
   rotateMeat(id: number): boolean {
     const meat = this.meatById(id);
-    if (!meat || meat.location === 'board') return false;
+    if (!meat || (!meat.onGrill && meat.location !== 'carried')) return false;
     const turns = (meat.quarterTurns + 1) % 4;
     if (meat.onGrill && !this.fits(meat, meat.positionM, turns)) { this.message = 'No hay espacio para girar la pieza en ese lugar.'; return false; }
     meat.quarterTurns = turns;

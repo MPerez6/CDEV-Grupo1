@@ -1,6 +1,48 @@
 import type { GameplayController } from './actions.ts';
 import type { InteractionTarget } from './targets.ts';
 
+/** Un trazo aplica la herramienta seleccionada sólo al pasar por un corte en la tabla. */
+export function bindPreparationStroke(target: EventTarget, options: {
+  isPlaying: () => boolean;
+  gameplay: GameplayController;
+  getTarget: () => InteractionTarget | null;
+}): () => void {
+  const { isPlaying, gameplay, getTarget } = options;
+  let tool: GameplayController['preparationTool'] = null;
+  let start: InteractionTarget['prepPoint'];
+  const touched = new Set<number>();
+  const clear = (): void => { tool = null; start = undefined; touched.clear(); };
+  const down = (event: Event): void => {
+    clear();
+    if((event as MouseEvent).button !== 0 || !isPlaying()) return;
+    tool = gameplay.preparationTool;
+    if(tool) start = getTarget()?.prepPoint;
+  };
+  const move = (event: Event): void => {
+    if(!tool || tool !== gameplay.preparationTool || !isPlaying() || !((event as MouseEvent).buttons & 1)) {
+      clear();
+      return;
+    }
+    const hit = getTarget();
+    const point = hit?.prepPoint;
+    if(!point) { start = undefined; return; }
+    start ??= point;
+    if(!hit || Math.hypot(point.x - start.x, point.z - start.z) < 0.035 || hit.kind !== 'meat'
+      || hit.meatId === undefined || touched.has(hit.meatId)) return;
+    touched.add(hit.meatId);
+    if(gameplay.applyPreparation(hit) && tool.kind === 'knife') clear();
+  };
+  target.addEventListener('mousedown', down);
+  target.addEventListener('mousemove', move);
+  target.addEventListener('mouseup', clear);
+  return () => {
+    target.removeEventListener('mousedown', down);
+    target.removeEventListener('mousemove', move);
+    target.removeEventListener('mouseup', clear);
+    clear();
+  };
+}
+
 /** Pointer Lock redirige el mouse al elemento bloqueado (body), no al canvas. */
 export function bindPrimaryAction(target: EventTarget, isPlaying: () => boolean, action: () => void): () => void {
   const onMouseDown = (event: Event): void => {

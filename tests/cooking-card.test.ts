@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { describeMeat, faceLabel } from '../src/ui/cooking-card.ts';
+import { MeatModel } from '../src/sim/meat.ts';
 import { SimulationWorld } from '../src/sim/world.ts';
 
 const freshMatambre = () => {
@@ -45,4 +46,17 @@ test('las etiquetas de cada cara siguen los umbrales de la simulación', () => {
   assert.equal(faceLabel(70, 0).label, 'Muy tostada');
   assert.equal(faceLabel(50, 12).label, 'Empieza a quemarse');
   assert.equal(faceLabel(50, 40).label, 'Quemada');
+});
+
+test('la ficha distingue una tripa tostada de un embutido quemado', () => {
+  const meat = new MeatModel('chorizo');
+  meat.layersC.fill(71);
+  meat.brown.a = meat.brown.b = 45;
+  meat.casingDamage.a = 35;
+  const card = describeMeat(meat);
+  assert.equal(card.tone, 'ready');
+  assert.equal(card.faces[0].label, 'Tripa tostada');
+
+  meat.casingDamage.a = meat.casingDamage.b = 80;
+  assert.equal(describeMeat(meat).doneness, 'Quemada');
 });

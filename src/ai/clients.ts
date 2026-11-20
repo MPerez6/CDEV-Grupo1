@@ -101,14 +101,10 @@ function drawBadge(
   if(actor.state === 'comiendo' && isComplaint) {
     ctx.fillStyle = '#fbbf24';
     ctx.font = 'bold 23px system-ui, sans-serif';
-    ctx.fillText(actor.reactionTitle ?? '😒 Punto errado', w / 2, 70);
+    ctx.fillText(actor.reactionTitle ?? 'Fuera de punto', w / 2, 70);
     ctx.fillStyle = '#fde68a';
     ctx.font = '18px system-ui, sans-serif';
-    ctx.fillText(
-      actor.reactionTimerSeconds > 0 ? 'Reclamando por la cocción...' : 'Comiendo a desgano',
-      w / 2,
-      97
-    );
+    ctx.fillText('Aceptó el plato', w / 2, 97);
     const sign = actor.lastScoreDelta >= 0 ? `+${actor.lastScoreDelta}` : `${actor.lastScoreDelta}`;
     const tipPart = actor.lastTipPesos > 0 ? `Propina +$${actor.lastTipPesos.toLocaleString('es-AR')}` : 'Sin propina ($0)';
     ctx.fillStyle = actor.lastScoreDelta >= 0 ? '#fcd34d' : '#fca5a5';
@@ -487,28 +483,27 @@ export function createClientViews(scene: THREE.Scene, clickable: THREE.Object3D[
         const isComplainingPoint = actor.state === 'comiendo' && actor.reactionKind === 'queja-punto' && actor.reactionTimerSeconds > 0;
         const isImpatient = actor.state === 'esperando' && actor.patienceRatio < 0.35;
 
-        // Los cubiertos solo se usan cuando realmente come (no cuando rechaza el plato furioso ni mientras reclama)
-        const showUtensils = actor.state === 'comiendo' && !isAngry && !isComplainingPoint;
+        const showUtensils = actor.state === 'comiendo' && !isAngry;
         for(const u of vis.utensils) u.visible = showUtensils;
 
         // Rubor facial de enojo, cejas fruncidas, boca abierta de reclamo y símbolo 3D de furia
-        const angerIntensity = isAngry ? 0.38 : isComplainingPoint || isImpatient ? 0.18 : 0;
+        const angerIntensity = isAngry ? 0.38 : isImpatient ? 0.18 : 0;
         vis.skinMat.color.copy(vis.baseSkinColor).lerp(angryFlushColor, angerIntensity);
 
-        const browAngle = isAngry ? 0.42 : isComplainingPoint || isImpatient ? 0.28 : actor.reactionKind === 'feliz' ? -0.10 : 0;
+        const browAngle = isAngry ? 0.42 : isImpatient ? 0.28 : isComplainingPoint ? 0.12 : actor.reactionKind === 'feliz' ? -0.10 : 0;
         vis.leftBrow.rotation.z = -browAngle;
         vis.rightBrow.rotation.z = browAngle;
         vis.leftBrow.position.y = 0.114 - (browAngle > 0 ? 0.006 : -0.003);
         vis.rightBrow.position.y = 0.114 - (browAngle > 0 ? 0.006 : -0.003);
 
-        const shouting = isAngry || isComplainingPoint || (actor.state === 'esperando' && actor.patienceRatio < 0.20);
+        const shouting = isAngry || (actor.state === 'esperando' && actor.patienceRatio < 0.20);
         vis.mouth.scale.set(
           shouting ? 1.25 : 1.0,
           shouting ? 2.4 + Math.abs(Math.sin(elapsedReal * 10 + actor.id)) * 1.2 : 1.0,
           1.0
         );
 
-        vis.angerSymbol.visible = isAngry || isComplainingPoint;
+        vis.angerSymbol.visible = isAngry;
         if(vis.angerSymbol.visible) {
           const pulse = 1 + Math.sin(elapsedReal * 14 + actor.id) * 0.18;
           vis.angerSymbol.scale.setScalar(pulse);
@@ -579,14 +574,13 @@ export function createClientViews(scene: THREE.Scene, clickable: THREE.Object3D[
               vis.rightElbow.rotation.set(-0.95 - idleWave * 0.04, 0, 0);
               vis.head.rotation.set(0, Math.sin(elapsedReal * 0.85 + actor.id) * 0.32, 0);
             }
-          } else if(isAngry || isComplainingPoint) {
-            // Reacción de enojo o reclamo ante corte equivocado, crudo, quemado o fuera de punto
+          } else if(isAngry) {
             applyAngerSeatedPose(vis, actor, elapsedReal);
           } else {
             // Cortando y comiendo con cuchillo y tenedor sobre su plato
             const cutCycle = elapsedReal * 5.6 + actor.id;
             const cutWave = Math.sin(cutCycle);
-            const reluctantShake = actor.reactionKind === 'queja-punto' ? Math.sin(elapsedReal * 4.5) * 0.20 : cutWave * 0.05;
+            const reluctantShake = isComplainingPoint ? Math.sin(elapsedReal * 4.5) * 0.12 : cutWave * 0.05;
             vis.body.rotation.set(0.15, 0, 0);
             vis.leftShoulder.rotation.set(-0.62 + cutWave * 0.08, 0.22, 0.12);
             vis.rightShoulder.rotation.set(-0.68 - cutWave * 0.18, -0.22, -0.12);
@@ -600,8 +594,7 @@ export function createClientViews(scene: THREE.Scene, clickable: THREE.Object3D[
 
         if(vis.badge.visible) {
           const patienceBucket = Math.floor(actor.patienceRatio * 20);
-          const complainPhase = actor.reactionTimerSeconds > 0 ? 1 : 0;
-          const badgeKey = `${actor.state}:${actor.reactionKind}:${actor.reactionTitle ?? ''}:${complainPhase}:${patienceBucket}`;
+          const badgeKey = `${actor.state}:${actor.reactionKind}:${actor.reactionTitle ?? ''}:${patienceBucket}`;
           if(vis.lastBadgeKey !== badgeKey) {
             vis.lastBadgeKey = badgeKey;
             drawBadge(vis.badgeCanvas, actor);

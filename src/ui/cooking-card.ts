@@ -1,6 +1,7 @@
 import { CONFIG } from '../sim/parameters.ts';
 import { MEAT_THERMAL as P } from '../sim/meatCatalog.ts';
 import type { MeatModel } from '../sim/meat.ts';
+import { SEASONING_LABELS } from '../sim/seasoning.ts';
 
 /**
  * Ficha de cocción (UI): traduce el estado que ya calcula la simulación a lenguaje de asador.
@@ -33,8 +34,7 @@ export function faceLabel(brown: number, burn: number): { label: string; tone: T
 }
 
 function doneness(meat: MeatModel): { label: string; tone: Tone } {
-  const maxBurn = Math.max(meat.burn.a, meat.burn.b, meat.casingDamage.a, meat.casingDamage.b);
-  if(maxBurn >= P.burnedThreshold || meat.state === 'burned') return { label: 'Quemada', tone: 'over' };
+  if(meat.isBurned) return { label: 'Quemada', tone: 'over' };
   if(meat.state === 'dry') return { label: 'Pasada y seca', tone: 'over' };
 
   const minBrown = Math.min(meat.brown.a, meat.brown.b);
@@ -62,14 +62,16 @@ function doneness(meat: MeatModel): { label: string; tone: Tone } {
 }
 
 function hint(meat: MeatModel, carried: boolean): string {
-  if(carried) return 'Clic en la parrilla para apoyar, o en el plato de un cliente para servir.';
-  if(meat.location === 'board') return 'Agarrala con la pinza (3 + E) y llevala a la parrilla.';
-  if(meat.state === 'burned') return 'Ya se quemó: sacala de la parrilla.';
+  if(carried) return 'Apoyala en la mesa para condimentar o hacé clic en la parrilla sobre las brasas.';
+  if(meat.location === 'fridge') return 'Sacala de la heladera con la pinza (3 + E).';
+  if(meat.location === 'board') return 'Elegí un condimento o el cuchillo con E, o recogé la pieza con la pinza (3 + E).';
+  if(meat.isBurned) return 'Ya se quemó: sacala de la parrilla.';
   if(meat.objectiveAchieved || (meat.centerC >= 58 && (meat.brown.a + meat.brown.b) >= 45))
     return 'Lista para servir: levantala con la pinza (E) y llevala al plato del cliente.';
   const down = meat.faceDown, up = down === 'a' ? 'b' : 'a';
   const turnKey = meat.definition.geometry === 'cylinder' ? 'rodala (R)' : 'dala vuelta (R)';
   if(meat.burn[down] >= 5) return `Se está quemando abajo: ${turnKey} o pasala a menos fuego.`;
+  if(meat.casingDamage[down] >= P.burnedThreshold) return 'La tripa se está tostando de más: pasala a menos fuego.';
   if(meat.brown[down] >= CONFIG.meatBrowningMin && meat.brown[up] < CONFIG.meatBrowningMin) return `La cara de abajo ya doró: ${turnKey}.`;
   if(meat.state === 'dry') return 'Se está secando: sacala ya.';
   return 'Dejala hacer y mirá cómo dora la cara de abajo.';
@@ -82,18 +84,23 @@ export function describeMeat(meat: MeatModel, carried = false): MeatCard {
   const range = target ? `objetivo ${target.minC}${target.maxC === null ? '+' : `–${target.maxC}`} °C` : 'precocida';
   const cyl = meat.definition.geometry === 'cylinder';
   const faces = (['a', 'b'] as const).map(side => {
-    const f = faceLabel(meat.brown[side], Math.max(meat.burn[side], meat.casingDamage[side]));
+    const f = cyl && meat.burn[side] < P.objectiveMaxBurn && meat.casingDamage[side] >= P.burnedThreshold
+      ? { label: 'Tripa tostada', tone: 'over' as const }
+      : faceLabel(meat.brown[side], meat.burn[side]);
     return { name: cyl ? (side === 'a' ? 'Lado 1' : 'Lado 2') : (side === 'a' ? 'Cara A' : 'Cara B'), down: meat.onGrill && meat.faceDown === side, ...f };
   });
   const d = doneness(meat);
   return {
-    name: meat.definition.name,
-    place: carried ? 'En la pinza' : meat.location === 'grill' ? 'En la parrilla' : 'En la tabla',
+    name: meat.displayName,
+    place: carried ? 'En la pinza' : meat.location === 'grill' ? 'En la parrilla'
+      : meat.location === 'fridge' ? 'En la heladera' : 'En la tabla',
     doneness: d.label,
     tone: d.tone,
     progress,
     center: `Centro ≈ ${Math.round(meat.centerC)} °C · ${range}`,
     faces,
-    hint: hint(meat, carried),
+    hint: meat.seasonings.length
+      ? `${hint(meat, carried)} Condimentos: ${meat.seasonings.map(s => SEASONING_LABELS[s]).join(', ')}.`
+      : hint(meat, carried),
   };
 }

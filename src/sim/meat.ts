@@ -1,7 +1,13 @@
 import { CONFIG } from './parameters.ts';
-import { MEAT_CATALOG, MEAT_THERMAL as P, meatDimensions, type MeatKind } from './meatCatalog.ts';
+import { MEAT_CATALOG, MEAT_THERMAL as P, meatDimensions, type MeatDefinition, type MeatKind, type Point2 } from './meatCatalog.ts';
+import type { Seasoning } from './seasoning.ts';
 export type Side = 'a' | 'b';
 export type MeatState = 'raw' | 'undercooked' | 'cooked' | 'dry' | 'burned' | 'precooked' | 'reheating';
+export type MeatStorage = 'board' | 'fridge';
+export type MeatPortion = Readonly<{
+  sourceId: number; side: -1 | 1; centerM: Point2; definition: MeatDefinition;
+  uv: Readonly<{ u0: number; u1: number; v0: number; v1: number }>;
+}>;
 let nextMeatId = 1;
 /** Cinco volúmenes: planos de una cara a otra, cilindros de envoltura a centro.
  * Propiedades, contacto, evaporación y dorado PROVISIONALES. */
@@ -9,6 +15,7 @@ export class MeatModel {
   public readonly id = nextMeatId++;
   public readonly definition;
   public readonly dimensions;
+  public readonly portion?: MeatPortion;
   public readonly layersC: number[] = Array(CONFIG.meatLayerCount).fill(CONFIG.meatInitialC);
   public readonly layerMassKg: number[];
   public readonly conductanceWK: number[];
@@ -18,15 +25,16 @@ export class MeatModel {
   public readonly casingDamage: Record<Side, number> = { a: 0, b: 0 };
   public juiciness = 100;
   public faceDown: Side = 'a';
-  public location: 'board' | 'carried' | 'grill' | 'served' = 'board';
+  public location: MeatStorage | 'carried' | 'grill' | 'served' = 'board';
+  public readonly seasonings: Seasoning[] = [];
   public servedSeat: number | null = null;
   public positionM = { x: CONFIG.grillWidthM / 2, z: CONFIG.grillDepthM / 2 };
   public quarterTurns = 0;
-  public boardSlot = 0;
   public totalSimSeconds = 0;
   public hasReceivedGrillHeat = false;
-  constructor(kind: MeatKind = 'matambre') {
-    this.definition = MEAT_CATALOG[kind];
+  constructor(kind: MeatKind = 'matambre', portion?: MeatPortion) {
+    this.portion = portion;
+    this.definition = portion?.definition ?? MEAT_CATALOG[kind];
     this.dimensions = meatDimensions(this.definition);
     const d = this.definition, n = CONFIG.meatLayerCount;
     if (d.geometry === 'flat') {
@@ -43,10 +51,11 @@ export class MeatModel {
         d.conductivityWmK * 2 * Math.PI * radii[i + 1] * this.dimensions.widthM / (centers[i] - centers[i + 1]));
     }
   }
+  get displayName(): string { return this.portion ? `½ ${this.definition.name}` : this.definition.name; }
   get onGrill(): boolean { return this.location === 'grill'; }
   set onGrill(value: boolean) { this.location = value ? 'grill' : 'board'; }
   flip(): void { this.faceDown = this.faceDown === 'a' ? 'b' : 'a'; }
-  resetToFreshBoard(): void {
+  resetFresh(location: MeatStorage): void {
     this.layersC.fill(CONFIG.meatInitialC);
     this.brown.a = 0; this.brown.b = 0;
     this.burn.a = 0; this.burn.b = 0;
@@ -54,7 +63,8 @@ export class MeatModel {
     this.casingDamage.a = 0; this.casingDamage.b = 0;
     this.juiciness = 100;
     this.faceDown = 'a';
-    this.location = 'board';
+    this.location = location;
+    this.seasonings.length = 0;
     this.servedSeat = null;
     this.quarterTurns = 0;
     this.totalSimSeconds = 0;
@@ -73,13 +83,14 @@ export class MeatModel {
     const area = this.dimensions.areaM2;
     energyJ[lower] += incoming * d.absorptivity * area * dt;
     const conv = CONFIG.meatSurfaceConvectionWm2K;
+    const ambientC = this.location === 'fridge' ? CONFIG.meatInitialC : CONFIG.ambientC;
     if (radial) {
       const r = d.thicknessM / 2;
       const exteriorArea = 2 * Math.PI * r * this.dimensions.widthM + 2 * Math.PI * r * r;
-      energyJ[0] -= conv * exteriorArea * (1 + P.lowerConvectionFactor) / 2 * (this.layersC[0] - CONFIG.ambientC) * dt;
+      energyJ[0] -= conv * exteriorArea * (1 + P.lowerConvectionFactor) / 2 * (this.layersC[0] - ambientC) * dt;
     } else {
-      energyJ[lower] -= conv * area * (this.layersC[lower] - CONFIG.ambientC) * dt * P.lowerConvectionFactor;
-      energyJ[upper] -= conv * area * (this.layersC[upper] - CONFIG.ambientC) * dt;
+      energyJ[lower] -= conv * area * (this.layersC[lower] - ambientC) * dt * P.lowerConvectionFactor;
+      energyJ[upper] -= conv * area * (this.layersC[upper] - ambientC) * dt;
     }
     for (let i = 0; i < n - 1; i++) {
       const transfer = this.conductanceWK[i] * (this.layersC[i] - this.layersC[i + 1]) * dt;
@@ -108,8 +119,15 @@ export class MeatModel {
     this.totalSimSeconds += dt;
   }
   get centerC(): number { return this.layersC[this.definition.geometry === 'cylinder' ? 4 : 2]; }
+  get hasSevereCasingDamage(): boolean {
+    return this.definition.geometry === 'cylinder'
+      && (this.casingDamage.a + this.casingDamage.b) / 2 >= CONFIG.severeCasingDamage;
+  }
+  get isBurned(): boolean {
+    return Math.max(this.burn.a, this.burn.b) >= P.burnedThreshold || this.hasSevereCasingDamage;
+  }
   get state(): MeatState {
-    if (Math.max(this.burn.a, this.burn.b, this.casingDamage.a, this.casingDamage.b) >= P.burnedThreshold) return 'burned';
+    if (this.isBurned) return 'burned';
     if (this.centerC > P.dryCenterC || this.juiciness < P.dryJuice) return 'dry';
     if (this.definition.precooked) return this.hasReceivedGrillHeat ? 'reheating' : 'precooked';
     const target = this.definition.target;

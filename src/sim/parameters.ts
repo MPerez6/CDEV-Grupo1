@@ -5,12 +5,25 @@
  */
 export const CONFIG = {
   // --- Reloj y paso de simulación ---
-  /** Multiplicador de velocidad del tiempo simulado respecto del tiempo real (4 = 1 s real equivale a 4 s simulados; ritmo 2.5x más pausado y realista que el valor original de 10). */
-  timeScale: 4,
+  /** Un segundo de juego activo equivale a seis segundos de fuego y cocción simulados. */
+  timeScale: 6,
   /** Duración fija (en segundos simulados) de cada paso de integración física y térmica. */
   simulationStepSeconds: 0.25,
   /** Límite máximo de sub-pasos ejecutados por frame para evitar bloqueos si cae el framerate. */
   simulationMaxStepsPerFrame: 25,
+
+  // Espera real desde que el cliente hace el pedido; no se acelera con la parrilla.
+  clientPatienceRealSeconds: {
+    matambre: 10 * 60, vacio: 20 * 60, costilla: 15 * 60,
+    falda: 16 * 60, chorizo: 17 * 60, morcilla: 14 * 60,
+  },
+  // Balance de comensales: tolerancia de servicio, independiente de la física de cocción.
+  clientDelivery: {
+    donenessRangesC: {
+      'jugoso': [54, 67.5], 'a-punto': [66, 75.5], 'bien-cocido': [74, 85],
+    },
+    nearDonenessC: 5,
+  },
 
   // --- Dimensiones y grilla térmica de la parrilla ---
   /** Cantidad de columnas de sectores térmicos a lo ancho de la parrilla (eje X). */
@@ -79,6 +92,8 @@ export const CONFIG = {
   radiantNeighbourShare: 0.05,
 
   // --- Propiedades térmicas y objetivos base de la carne ---
+  /** Daño medio de tripa (0–100) que se considera quemado aunque la carne no se haya carbonizado. */
+  severeCasingDamage: 75,
   /** Temperatura ambiente del patio en grados Celsius (°C). */
   ambientC: 25,
   /** Temperatura inicial de los cortes al salir de refrigeración en grados Celsius (°C). */

@@ -1,3 +1,5 @@
+import { CONFIG } from '../sim/parameters.ts';
+
 /** Créditos del Grupo 01 (según el SDD). */
 export const CREDITS: ReadonlyArray<[string, string]> = [
   ['Alessandro González', 'Dirección creativa, técnica y narrativa'],
@@ -15,7 +17,8 @@ const STEPS = [
   'Con el encendedor <kbd>1</kbd>, hacé clic sobre el papel que está debajo del brasero.',
   'Esperá: las brasas listas caen solas a la mesada. Con el atizador <kbd>4</kbd> podés golpear el brasero.',
   'Con la pala <kbd>2</kbd>, recogé las brasas y repartilas debajo de la parrilla.',
-  'Con la pinza <kbd>3</kbd>, agarrá un corte de la mesa con <kbd>E</kbd> y apoyalo en la parrilla con un clic.',
+  'Abrí la heladera con <kbd>E</kbd> y elegí un corte con la pinza <kbd>3</kbd> + <kbd>E</kbd>.',
+  'Apoyalo sobre la tabla con <kbd>E</kbd>. Seleccioná un condimento o el cuchillo con <kbd>E</kbd>, mantené clic y arrastrá sobre el corte. Con <kbd>3</kbd> volvés a la pinza.',
   'Cuando dora la cara inferior, dalo vuelta con <kbd>R</kbd>. En Modo Clientes servilo en el plato con la pinza.',
 ];
 
@@ -44,7 +47,7 @@ export const HUD_TEMPLATE = `
         <strong>AsArt</strong>
         <span id="mode-badge" class="mode-pill">Entrenamiento</span>
       </div>
-      <span id="clock" class="clock-pill">0:00 · x4</span>
+      <span id="clock" class="clock-pill">0:00 · x${CONFIG.timeScale}</span>
     </div>
     <div id="tool-bar" class="tool-bar">
       ${TOOL_SLOTS.map((t, idx) => `

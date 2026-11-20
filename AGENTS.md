@@ -19,7 +19,7 @@ Este repositorio es la **versión 0.1**, NO un videojuego terminado.
 - Brasas rojas listas caen automáticamente justo debajo del brasero, sobre la mesada refractaria, sin avisos de caída ni bandeja negra. Conservar la pala y el golpe opcional para desprender fragmentos.
 - Fragmentos aún negros con zonas rojas vuelven al brasero, conservando progreso, masa residual y ceniza.
 - Las brasas colocadas bajo parrilla se consumen, pierden masa y entregan energía.
-- Reloj global de prueba a ×10. Cada porción de brasas se representa con varios fragmentos irregulares cercanos, tanto al caer como bajo la parrilla; evitar discos o piezas achatadas únicas. La multiplicación visual no crea masa ni calor.
+- Reloj de fuego y cocción a ×6. La paciencia de los clientes se mide en tiempo de juego activo sin acelerar. Cada porción de brasas se representa con varios fragmentos irregulares cercanos, tanto al caer como bajo la parrilla; la multiplicación visual no crea masa ni calor.
 - Cada corte debe conservar **5 capas térmicas**. No reemplazar por porcentaje único de cocción.
 - Valores visibles como temperatura son **diagnósticos** (F3), no HUD habitual.
 

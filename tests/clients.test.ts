@@ -50,7 +50,7 @@ test('Modo Clientes: entrada de comensales, evaluación por punto de cocción y 
   assert.equal(meat.brown.a, 0);
 });
 
-test('Reacciones de enojo diferenciadas: corte equivocado, crudo, quemado y punto errado', () => {
+test('Rechaza el corte equivocado, crudo o quemado y acepta el punto errado con una observación', () => {
   const order = { kind: 'vacio' as const, doneness: 'jugoso' as const, maxPatienceSeconds: 200 };
 
   // 1. Corte equivocado (pide Vacío, recibe Chorizo)
@@ -89,6 +89,8 @@ test('Reacciones de enojo diferenciadas: corte equivocado, crudo, quemado y punt
   const evalPoint = evaluateDelivery(order, overcookedMeat, 0.8);
   assert.equal(evalPoint.grade, 'regular');
   assert.equal(evalPoint.reactionKind, 'queja-punto');
+  assert.equal(evalPoint.angerGesture, undefined);
+  assert.match(evalPoint.feedback, /Lo acepto/);
 
   // 5. Morcilla precocida: fría dice "¡ESTÁ FRÍA!" y al entibiar a 58 °C ya resulta excelente
   const morcillaOrder = { kind: 'morcilla' as const, doneness: 'a-punto' as const, maxPatienceSeconds: 195 };
@@ -101,4 +103,65 @@ test('Reacciones de enojo diferenciadas: corte equivocado, crudo, quemado y punt
   const evalWarmMorcilla = evaluateDelivery(morcillaOrder, warmMorcilla, 0.9);
   assert.equal(evalWarmMorcilla.grade, 'excelente');
   assert.ok(evalWarmMorcilla.tipPesos >= 1800);
+});
+
+test('El corte correcto y jugoso conserva una buena calificación hasta 5 °C fuera del punto', () => {
+  const order = { kind: 'matambre' as const, doneness: 'a-punto' as const, maxPatienceSeconds: 600 };
+  const meat = new MeatModel('matambre');
+  meat.brown.a = 18;
+  meat.brown.b = 18;
+
+  for(const centerC of [61, 80.5]) {
+    meat.layersC.fill(centerC);
+    const result = evaluateDelivery(order, meat, 0.8);
+    assert.equal(result.grade, 'bueno', `${centerC} °C`);
+    assert.equal(result.reactionKind, 'feliz');
+  }
+
+  meat.layersC.fill(71);
+  meat.brown.a = 45;
+  meat.brown.b = 45;
+  const ideal = evaluateDelivery(order, meat, 0.8);
+  meat.layersC.fill(80.5);
+  const near = evaluateDelivery(order, meat, 0.8);
+  assert.equal(ideal.grade, 'excelente');
+  assert.equal(near.grade, 'bueno');
+  assert.ok(ideal.tipPesos > near.tipPesos);
+});
+
+test('Un chorizo con la tripa tostada puede servirse antes de que el daño sea grave', () => {
+  const order = { kind: 'chorizo' as const, doneness: 'a-punto' as const, maxPatienceSeconds: 1020 };
+  const meat = new MeatModel('chorizo');
+  meat.onGrill = true;
+  for(let t = 0.25; t <= 3000; t += 0.25) {
+    meat.update(0.25, 4700);
+    if(t === 2362) {
+      assert.ok(Math.max(meat.casingDamage.a, meat.casingDamage.b) >= 30);
+      assert.equal(meat.isBurned, false);
+      assert.equal(evaluateDelivery(order, meat, 0.8).grade, 'bueno');
+    }
+    if(t % 300 === 0) meat.flip();
+  }
+  assert.equal(meat.isBurned, true);
+  assert.equal(evaluateDelivery(order, meat, 0.8).reactionKind, 'enojo-quemado');
+});
+
+test('El servicio regular cuenta como atendido y el cliente come sin enojo', () => {
+  const world = new SimulationWorld();
+  world.resetClients(true);
+  world.updateClients(2.5);
+  const client = world.clients.clients[0];
+  for(let i = 0; i < 30 && client.state === 'entrando'; i++) world.updateClients(1);
+  assert.equal(client.state, 'esperando');
+  const meat = world.addMeat(client.order.kind);
+  meat.layersC.fill(46);
+  meat.brown.a = 12;
+  meat.brown.b = 12;
+  assert.ok(world.takeMeat(meat.id));
+  assert.ok(world.serveMeatToSeat(client.seatIndex));
+  assert.equal(world.clients.lastDelivery?.grade, 'regular');
+  assert.equal(client.state, 'comiendo');
+  assert.equal(client.isAngry, false);
+  assert.equal(world.clients.servedCount, 1);
+  assert.equal(world.clients.lostCount, 0);
 });

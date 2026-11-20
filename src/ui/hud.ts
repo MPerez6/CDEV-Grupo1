@@ -3,13 +3,14 @@ import { CONFIG } from '../sim/parameters.ts';
 import type { SimulationWorld } from '../sim/world.ts';
 import { footprintCoverage } from '../sim/meatFootprint.ts';
 import { TOOL_NAMES } from '../gameplay/tools.ts';
+import { preparationToolName, type PreparationTool } from '../gameplay/actions.ts';
 import type { InteractionTarget, TargetKind } from '../gameplay/targets.ts';
 import { targetName } from './target-labels.ts';
 import { describeMeat } from './cooking-card.ts';
 import { MEAT_CATALOG } from '../sim/meatCatalog.ts';
 import { CLIENT_SEATS, donenessShortLabel, estimateOrderTip } from '../ai/client-brain.ts';
 
-export type HudState = { activeTool: number; target: InteractionTarget | null };
+export type HudState = { activeTool: number; preparationTool?: PreparationTool | null; target: InteractionTarget | null };
 
 const CONTROLS_KEY = 'asado-controles-ocultos';
 const MESSAGE_SECONDS = 6;
@@ -107,7 +108,7 @@ export function createHud(app: HTMLElement, initialMessage: string) {
               statusLabel = c.reactionTitle ?? '😡 ¡Enojado!';
             } else if(c.reactionKind === 'queja-punto') {
               tone = 'progress';
-              statusLabel = c.reactionTitle ?? '😒 Punto errado';
+              statusLabel = `Aceptado · ${c.reactionTitle ?? 'Fuera de punto'}`;
             } else {
               tone = 'ready';
               statusLabel = c.reactionTitle ?? '😋 ¡Comiendo!';
@@ -134,8 +135,9 @@ export function createHud(app: HTMLElement, initialMessage: string) {
       const sign = last.scoreDelta >= 0 ? `+${last.scoreDelta}` : `${last.scoreDelta}`;
       const lastTone = last.grade === 'excelente' || last.grade === 'bueno' ? 'ready' : last.grade === 'regular' ? 'progress' : 'over';
       const tipStr = last.tipPesos > 0 ? `+$${last.tipPesos.toLocaleString('es-AR')}` : '$0';
+      const status = last.grade === 'regular' ? `Aceptado · ${last.shortTitle}` : last.shortTitle;
       lastHtml = `<div class="last-delivery" data-tone="${lastTone}">
-        <div class="last-top"><span>Última: <b>${last.clientName}</b> (${last.cutName})</span><span>${last.shortTitle}</span></div>
+        <div class="last-top"><span>Última: <b>${last.clientName}</b> (${last.cutName})</span><span>${status}</span></div>
         <div class="last-nums"><b>${sign} pts</b> · Propina: <b>${tipStr}</b></div>
       </div>`;
     }
@@ -174,7 +176,7 @@ export function createHud(app: HTMLElement, initialMessage: string) {
 
     // Actualizar barra visual de herramientas (slots 1..4) y estado de carga en Pala y Pinza
     for(let i = 0; i < toolSlotEls.length; i++) {
-      toolSlotEls[i].dataset.active = i === activeTool ? 'true' : 'false';
+      toolSlotEls[i].dataset.active = i === activeTool && !state.preparationTool ? 'true' : 'false';
     }
     const shovelSub = $('slot-sub-1');
     if(world.carried) {
@@ -188,7 +190,7 @@ export function createHud(app: HTMLElement, initialMessage: string) {
     const tongsSub = $('slot-sub-2');
     const carriedMeat = world.carriedMeatId !== null ? world.meatById(world.carriedMeatId) : undefined;
     if(carriedMeat) {
-      tongsSub.textContent = `● ${carriedMeat.definition.name}`;
+      tongsSub.textContent = `● ${carriedMeat.displayName}${carriedMeat.seasonings.length ? ' · condimentado' : ''}`;
       tongsSub.dataset.loaded = 'true';
     } else {
       tongsSub.textContent = 'Vacía';
@@ -207,12 +209,16 @@ export function createHud(app: HTMLElement, initialMessage: string) {
       ? `<span class="status-pill warn">✨ ${trayReady} brasa${trayReady > 1 ? 's' : ''} en mesada</span>`
       : '';
     const grillPill = `<span class="status-pill">♨️ Parrilla: ${world.grill.emberCount} brasa${world.grill.emberCount === 1 ? '' : 's'}</span>`;
-    $('hud-status').innerHTML = `${brazierPill}${trayPill}${grillPill}`;
+    const prepPill = state.preparationTool
+      ? `<span class="status-pill lit">${preparationToolName(state.preparationTool)} · Clic + arrastrar</span>` : '';
+    $('hud-status').innerHTML = `${brazierPill}${trayPill}${grillPill}${prepPill}`;
 
     const target = state.target;
     const kind = target?.kind as TargetKind | undefined;
     $('crosshair').dataset.active = kind ? 'true' : 'false';
-    $('target').innerHTML = kind ? formatTargetHtml(targetName(kind, target?.index)) : '';
+    const prepHint = state.preparationTool && target?.prepPoint
+      ? `${preparationToolName(state.preparationTool)} · Mantené clic y arrastrá sobre la carne · [3] Volver a la pinza` : null;
+    $('target').innerHTML = prepHint ? formatTargetHtml(prepHint) : kind ? formatTargetHtml(targetName(kind, target?.index)) : '';
     if (world.message !== lastMsg) { lastMsg = world.message; flash(world.message); }
     renderMeatCard(world, target);
     renderOrdersPanel(world);
@@ -221,7 +227,7 @@ export function createHud(app: HTMLElement, initialMessage: string) {
       const focus = typeof focusId === 'number' ? world.meatById(focusId) ?? world.meat : world.meat;
       $('debug').textContent = [
         'DIAGNÓSTICO · F3 para ocultar',
-        `${focus.definition.name} #${focus.id} · ${focus.definition.massKg} kg · ${focus.definition.thicknessM * 100} cm`,
+        `${focus.displayName} #${focus.id} · ${focus.definition.massKg} kg · ${focus.definition.thicknessM * 100} cm`,
         `Capas ${focus.definition.geometry === 'cylinder' ? 'envoltura → centro' : 'cara A → B'}: ${focus.layersC.map(n => n.toFixed(1)).join(' / ')} °C`,
         `Centro: ${focus.centerC.toFixed(1)} °C · flujo: ${world.meatFluxWm2(focus).toFixed(0)} W/m²`,
         `Dorado A/B: ${focus.brown.a.toFixed(1)} / ${focus.brown.b.toFixed(1)}`,

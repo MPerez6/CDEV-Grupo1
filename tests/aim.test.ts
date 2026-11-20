@@ -53,3 +53,17 @@ test('la asistencia de puntería agarra un objeto chico si la mira queda apenas 
   assert.equal(selectTargetFromRay(ray, c, 0), null, 'sin contexto no hay asistencia');
   assert.equal(selectTargetFromRay(ray, c, 0, { carryingMeat: false, shovelLoaded: false })?.kind, 'radio');
 });
+
+test('la asistencia no elige combustible si la mira no apunta al depósito', () => {
+  const supply = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.30, 0.10), new THREE.MeshBasicMaterial());
+  supply.position.set(-3, 1, -2);
+  supply.updateMatrixWorld();
+  const ctx = { carryingMeat: false };
+  const miss = rayFrom([-3, 1.6, -0.6], [-2.79, 1, -2]);
+  const hit = rayFrom([-3, 1.6, -0.6], [-3, 1, -2]);
+  for (const kind of ['fuel-coal', 'fuel-small-wood', 'fuel-large-wood', 'tinder']) {
+    supply.userData.kind = kind;
+    assert.equal(selectTargetFromRay(miss, [supply], 0, ctx), null, kind);
+    assert.equal(selectTargetFromRay(hit, [supply], 0, ctx)?.kind, kind);
+  }
+});

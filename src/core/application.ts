@@ -2,7 +2,7 @@ import { SimulationWorld } from '../sim/world.ts';
 import { FixedStepClock } from '../sim/clock.ts';
 import { MEAT_KINDS } from '../sim/meatCatalog.ts';
 import { ASADOR_LAYOUT } from '../level/asador.ts';
-import { CHAIR_STACK_BOUNDS, FAMILY_TABLE_BOUNDS, PATIO_TREE_BOUNDS, PERGOLA_POST_BOUNDS, PREP_TABLE_BOUNDS, RADIO_POSITION, RESTAURANT_TABLE_BOUNDS } from '../level/layout.ts';
+import { CHAIR_STACK_BOUNDS, FAMILY_TABLE_BOUNDS, FRIDGE_BOUNDS, PATIO_TREE_BOUNDS, PERGOLA_POST_BOUNDS, PREP_TABLE_BOUNDS, RADIO_POSITION, RESTAURANT_TABLE_BOUNDS } from '../level/layout.ts';
 import { createAudio } from '../audio/audio.ts';
 import { createRadioAudio } from '../audio/radio.ts';
 import { createCarbonAudio } from '../audio/carbon.ts';
@@ -15,18 +15,17 @@ import * as THREE from 'three';
 import { createHud } from '../ui/hud.ts';
 import { createGameplay } from '../gameplay/actions.ts';
 import { createPlayer } from '../gameplay/player.ts';
-import { bindGameplayInput, bindPokerSweep, bindPrimaryAction } from '../gameplay/input.ts';
+import { bindGameplayInput, bindPokerSweep, bindPreparationStroke, bindPrimaryAction } from '../gameplay/input.ts';
 import { createScene } from './scene.ts';
 import { createRenderer } from './renderer.ts';
 
 export function startApplication(app: HTMLElement): () => void {
-  const world = new SimulationWorld();
+  const world = new SimulationWorld('fridge');
   for(const kind of MEAT_KINDS.slice(1)) world.addMeat(kind);
-  world.addMeat('vacio'); // Segunda pieza de la muestra actual.
   const ui = createHud(app, world.message);
   const visual = createScene();
   const renderer = createRenderer(); app.prepend(renderer.domElement);
-  const baseObstacles = [ASADOR_LAYOUT.bounds, PREP_TABLE_BOUNDS, CHAIR_STACK_BOUNDS, PATIO_TREE_BOUNDS, ...PERGOLA_POST_BOUNDS];
+  const baseObstacles = [ASADOR_LAYOUT.bounds, PREP_TABLE_BOUNDS, FRIDGE_BOUNDS, CHAIR_STACK_BOUNDS, PATIO_TREE_BOUNDS, ...PERGOLA_POST_BOUNDS];
   const activeObstacles = [...baseObstacles, FAMILY_TABLE_BOUNDS];
   const player = createPlayer(visual.camera, visual.clickable, activeObstacles);
   const { controls, keys } = player;
@@ -94,21 +93,26 @@ export function startApplication(app: HTMLElement): () => void {
   // Solo en `npm run dev`: acceso para pruebas y capturas (Vite lo elimina del build de producción).
   if((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV)
     (window as unknown as Record<string, unknown>).__asado = { world, camera: visual.camera, dog, ui };
-  const target = () => player.target(gameplay.activeTool, { carryingMeat: world.carriedMeatId !== null, shovelLoaded: world.carried !== null && world.carried !== undefined });
+  const target = () => player.target(gameplay.preparationTool ? 2 : gameplay.activeTool, {
+    carryingMeat: world.carriedMeatId !== null, shovelLoaded: world.carried !== null, preparing: gameplay.preparationTool !== null,
+  });
   const unbindKeys = bindGameplayInput(window, {
     isPlaying: () => controls.isLocked, keys, gameplay, getTarget: target, toggleDebug: ui.toggleDebug,
   });
   const unbindClick = bindPrimaryAction(document, () => controls.isLocked, () => gameplay.primaryAction(target()));
   const unbindSweep = bindPokerSweep(document, {
-    isPlaying: () => controls.isLocked, gameplay, getTarget: target,
+    isPlaying: () => controls.isLocked && !gameplay.preparationTool, gameplay, getTarget: target,
+  });
+  const unbindPreparation = bindPreparationStroke(document, {
+    isPlaying: () => controls.isLocked && !document.hidden, gameplay, getTarget: target,
   });
   const unbindPlay = ui.onPlay(mode => {
     if(mode === 'clients') {
-      world.clients.reset(true);
+      world.resetClients(true);
       activeObstacles.splice(0, activeObstacles.length, ...baseObstacles, ...RESTAURANT_TABLE_BOUNDS);
       ui.showMessage('Modo Clientes activo: salón de Parrilla AsArt habilitado. Los comensales entrarán por la puerta.');
     } else if(mode === 'training') {
-      world.clients.reset(false);
+      world.resetClients(false);
       activeObstacles.splice(0, activeObstacles.length, ...baseObstacles, FAMILY_TABLE_BOUNDS);
     }
     audio.start(); carbonAudio.start(); pasosAudio.start(); radio.start(); controls.lock();
@@ -125,7 +129,9 @@ export function startApplication(app: HTMLElement): () => void {
   let previous = performance.now(), elapsedReal = 0, uiTimer = 0, frameId = 0;
   const visibility = () => { previous = performance.now(); };
   document.addEventListener('visibilitychange', visibility);
-  const updateHud = () => ui.update(world, { activeTool: gameplay.activeTool, target: controls.isLocked ? target() : null });
+  const updateHud = () => ui.update(world, {
+    activeTool: gameplay.activeTool, preparationTool: gameplay.preparationTool, target: controls.isLocked ? target() : null,
+  });
   //variables de pasos
   let distanciaAcumulada = 0;
   let ultimaX = visual.camera.position.x;
@@ -163,7 +169,7 @@ export function startApplication(app: HTMLElement): () => void {
     }
 
     if(controls.isLocked && !document.hidden) clock.advance(frameSeconds, dt => world.tick(dt));
-    visual.updateVisuals(world, elapsedReal, gameplay.activeTool);
+    visual.updateVisuals(world, elapsedReal, gameplay.preparationTool ? -1 : gameplay.activeTool);
     uiTimer += realDt;
     if(uiTimer > 0.15) { updateHud(); uiTimer = 0; }
     audio.update(Math.max(0, ...world.meats.map(meat => world.meatFluxWm2(meat))), controls.isLocked);
@@ -229,7 +235,7 @@ export function startApplication(app: HTMLElement): () => void {
   );
 
 
-    if(controls.isLocked) {
+    if(controls.isLocked && !document.hidden) {
       const dogEvents = dog.update({ dt: realDt, player: playerXZ(), meatOnGrill: world.meats.some(m => m.onGrill), burning: somethingBurning() }, elapsedReal);
       for(const event of dogEvents) ui.showMessage(event.message);
       const clientEvents = world.updateClients(realDt);
@@ -242,7 +248,7 @@ export function startApplication(app: HTMLElement): () => void {
   updateHud(); frameId = requestAnimationFrame(frame);
   return () => {
     cancelAnimationFrame(frameId);
-    unbindKeys(); unbindClick(); unbindSweep(); unbindPlay();
+    unbindKeys(); unbindClick(); unbindSweep(); unbindPreparation(); unbindPlay();
     window.removeEventListener('resize', resize); document.removeEventListener('visibilitychange', visibility);
     controls.removeEventListener('lock', onLock); controls.removeEventListener('unlock', onUnlock);
     controls.unlock(); controls.dispose(); audio.dispose(); carbonAudio.dispose(); encendedorAudio.dispose(); palitaAudio.dispose(); pasosAudio.dispose(); perroAudio.dispose(); radio.dispose(); renderer.dispose(); renderer.domElement.remove();

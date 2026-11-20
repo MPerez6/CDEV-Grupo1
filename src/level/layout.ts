@@ -1,7 +1,30 @@
 import * as THREE from 'three';
-export const PREP_TABLE_BOUNDS = { x0: 2.25, x1: 6.85, z0: -4.85, z1: -1.95 };
-export function boardPosition(slot: number): THREE.Vector3 {
-  return new THREE.Vector3(3.0 + slot % 3 * 1.5, 1.105, -2.45 - Math.floor(slot / 3) * 0.95);
+import { MEAT_KINDS, type MeatKind } from '../sim/meatCatalog.ts';
+
+export const PREP_TABLE = { x: 3.23, z: -4.04, width: 2.18, depth: 1.36, top: 1.02 };
+export const PREP_TABLE_BOUNDS = {
+  x0: PREP_TABLE.x - PREP_TABLE.width / 2, x1: PREP_TABLE.x + PREP_TABLE.width / 2,
+  z0: PREP_TABLE.z - PREP_TABLE.depth / 2, z1: PREP_TABLE.z + PREP_TABLE.depth / 2,
+};
+export const PREP_BOARD = { width: 1.72, depth: 0.94, thickness: 0.045 };
+export function boardPosition(): THREE.Vector3 {
+  return new THREE.Vector3(PREP_TABLE.x, PREP_TABLE.top + PREP_BOARD.thickness + 0.002, PREP_TABLE.z + 0.14);
+}
+
+export const FRIDGE = { x: 5.86, z: -4.48, width: 2.66, depth: 1.1, height: 2.44, shelves: [0.43, 1.08, 1.73] } as const;
+export const FRIDGE_BOUNDS = {
+  x0: FRIDGE.x - FRIDGE.width / 2, x1: FRIDGE.x + FRIDGE.width / 2,
+  z0: FRIDGE.z - FRIDGE.depth / 2, z1: FRIDGE.z + FRIDGE.depth / 2,
+};
+export const FRIDGE_CUT_SCALE = 0.74;
+export const BOARD_CUT_SCALE = 0.76;
+export function fridgePosition(kind: MeatKind): THREE.Vector3 {
+  const slot = MEAT_KINDS.indexOf(kind);
+  return new THREE.Vector3(
+    FRIDGE.x + (slot % 2 === 0 ? -0.635 : 0.635),
+    FRIDGE.shelves[Math.floor(slot / 2)] + 0.012,
+    FRIDGE.z + 0.035,
+  );
 }
 
 

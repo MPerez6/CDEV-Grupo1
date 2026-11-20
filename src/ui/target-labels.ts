@@ -1,7 +1,9 @@
 import type { TargetKind } from '../gameplay/targets.ts';
 import { DOG_NAME } from '../ai/dog-brain.ts';
+import { SEASONINGS, SEASONING_LABELS } from '../sim/seasoning.ts';
 
 export function targetName(kind: TargetKind, index?: number): string {
+  const seasoning = index === undefined ? undefined : SEASONINGS[index];
   const names: Record<TargetKind, string> = {
     'fuel-coal': '🪨 Carbón vegetal · [E] Cargar 3 trozos al brasero',
     'fuel-small-wood': '🪵 Leña fina · [E] Cargar 2 ramas al brasero',
@@ -13,6 +15,9 @@ export function targetName(kind: TargetKind, index?: number): string {
     'grill-cell': `♨️ Parrilla (Sector ${index === undefined ? '?' : index + 1}) · [2] Brasas · [3] Carne · [4] Desparramar`,
     'meat': '🥩 Corte de carne · [3 + E] Agarrar · [R] Dar vuelta · [Q] Girar 90°',
     'board': '🔪 Tabla de preparación · [3 + E] Apoyar el corte de la pinza',
+    'fridge-door': '🧊 Heladera · [E] Abrir o cerrar',
+    'seasoning': `🧂 ${seasoning ? SEASONING_LABELS[seasoning] : 'Condimento'} · [E] Seleccionar`,
+    'prep-knife': '🔪 Cuchillo · [E] Seleccionar para cortar en dos',
     'radio': '📻 Radio portátil · [E] Prender / cambiar estación / apagar',
     'dog': `🐕 ${DOG_NAME} · [E] Acariciar`,
     'plate': `🍽️ Plato (Lugar ${(index ?? 0) + 1}) · [3 + Clic / E] Servir corte al comensal`,

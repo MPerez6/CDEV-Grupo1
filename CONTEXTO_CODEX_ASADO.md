@@ -6,6 +6,16 @@
 
 Este documento consolida lo conversado sobre el juego, las aclaraciones originales y una inspección directa del código del prototipo 0.1. Distingue lo CONFIRMADO de lo PROPUESTO, PROVISIONAL y PENDIENTE.
 
+### Heladera, preparación y ritmo de servicio — 12/11/2026
+
+- Actualización: stock ilimitado por tipo con reposición al retirar, aplicación de condimentos manteniendo clic y moviendo la mira sobre la tabla, y cuchillo para dividir en dos porciones conservando masa y estado térmico. Se pueden servir las mitades del mismo corte a dos clientes.
+- Balance de comensales: margen de 5 °C alrededor del rango ideal para carne vacuna jugosa, nota regular con aceptación visible, y daño moderado de tripa con penalización de calidad. Se conservan los rechazos por quemado, crudo o frío de heladera y corte equivocado.
+- Rama local de integración basada en `emy-interfaz`: se conserva el modo Clientes, el patio y los modelos del equipo. El reloj de fuego y cocción pasó de ×4 a ×6, con el mismo paso térmico y las cinco capas.
+- La heladera a la derecha tiene puertas interactivas con E y seis compartimentos. Los cortes están refrigerados; con pinza se retiran por pieza. Mesa junto al asador: un corte por tabla, sal gruesa, chimichurri o salmuera mediante E. Los condimentos quedan en la pieza hasta la reposición y no cambian la física.
+- Cada pedido tiene 10–20 minutos de juego activo desde que el cliente se sienta y pide. Al terminar de comer se retira la pieza del plato; la reposición de la heladera ya ocurrió al retirarla.
+- Brasero vacío al inicio. No se encontró recarga automática en el modelo; se quitó la asistencia lateral de puntería para carbón, leña y papel. Se mantienen la caída de brasas y el reacomodo del combustible ya cargado.
+- Verificación reproducible de tiempos y procedimiento: [docs/PREPARACION_Y_RITMO.md](docs/PREPARACION_Y_RITMO.md). A calor común los cortes conservan tiempos diferentes.
+
 ### Organización modular — 29/10/2026
 
 - El usuario autorizó dividir el proyecto por sistemas según los roles compartidos. Implementados nueve módulos: `src/core`, `sim`, `gameplay`, `level`, `art`, `lighting`, `effects`, `audio`, `ui`. Cada uno tiene un README. Muestras en `src/previews`, recursos conservados en `src/assets`.
