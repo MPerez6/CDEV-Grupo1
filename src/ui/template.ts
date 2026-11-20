@@ -18,7 +18,7 @@ const STEPS = [
   'Esperá: las brasas listas caen solas a la mesada. Con el atizador <kbd>4</kbd> podés golpear el brasero.',
   'Con la pala <kbd>2</kbd>, recogé las brasas y repartilas debajo de la parrilla.',
   'Abrí la heladera con <kbd>E</kbd> y elegí un corte con la pinza <kbd>3</kbd> + <kbd>E</kbd>.',
-  'Apoyalo sobre la tabla con <kbd>E</kbd>. Seleccioná un condimento o el cuchillo con <kbd>E</kbd>, mantené clic y arrastrá sobre el corte. Con <kbd>3</kbd> volvés a la pinza.',
+  'Apoyalo sobre la tabla con <kbd>E</kbd>. Elegí un condimento con <kbd>E</kbd> y arrastrá sobre la carne. Con el cuchillo, dibujá la línea y soltá el clic para cortar. Volvé a la pinza con <kbd>3</kbd>.',
   'Cuando dora la cara inferior, dalo vuelta con <kbd>R</kbd>. En Modo Clientes servilo en el plato con la pinza.',
 ];
 

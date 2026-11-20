@@ -62,7 +62,7 @@ npm run build
 6. Equipá **2**, apuntá a las brasas sobre la mesada bajo la canasta y hacé clic para cargar la pala. Si son brasas listas, clic sobre un sector de parrilla para dispersarlas. Si es un fragmento inmaduro, clic sobre el brasero para devolverlo.
 7. Repetí para distribuir brasas en varios sectores de cocción.
 8. Abrí la **heladera** con **E** y recogé un corte con **3 + E**. El compartimento se repone al instante con una pieza fría del mismo tipo.
-9. Apoyá el corte en la **mesa del asador** con **E**. Seleccioná sal gruesa, chimichurri, salmuera o el cuchillo con **E**, mantené clic izquierdo y mové la mira sobre la carne. El cuchillo divide una pieza entera en dos porciones. Equipá **3** para volver a la pinza.
+9. Apoyá el corte en la **mesa del asador** con **E**. Elegí el salero, el molinillo de pimienta, el chimichurri o la salmuera con **E**. Mantené clic izquierdo y recorré la zona que quieras condimentar. Para porcionar, seleccioná el cuchillo con **E**, arrastrá sobre la carne y soltá cuando la guía marque el corte deseado. Podés volver a cortar una porción. Equipá **3** para levantarla con la pinza.
 10. Hacé clic en un sector de parrilla para colocar el corte. **Q** lo orienta; **R** lo da vuelta o rueda el embutido. Si no cabe o se superpone, permanece en la pinza.
 11. Retirá el corte con **3 + E**. Podés cortarlo cocido en la mesa para servir una mitad a cada cliente que pidió ese tipo de carne. Usá **F3** para revisar las cinco capas y la exposición al calor.
 

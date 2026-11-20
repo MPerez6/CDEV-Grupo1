@@ -10,7 +10,7 @@ export type InteractionTarget = {
   kind: TargetKind;
   index?: number;
   meatId?: number;
-  prepPoint?: { x: number; z: number };
+  prepPoint?: { x: number; z: number; y?: number };
   emberPointM?: { x: number; z: number };
   pokerAim?: PokerAim;
 };

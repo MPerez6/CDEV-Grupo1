@@ -6,11 +6,21 @@ import { createChorizoVisual } from './chorizo-visual.ts';
 import { createMorcillaVisual } from './morcilla-visual.ts';
 import { createCostillaVisual } from './costilla-visual.ts';
 import { createFaldaVisual } from './falda-visual.ts';
+import { cutSurface } from './cut-surface.ts';
 
 export type MeatVisual = { group: THREE.Group; pickMeshes: THREE.Mesh[]; update: () => void };
 
 /** Geometría y color exclusivamente visuales; dimensiones tomadas del catálogo. */
 export function createMeatVisual(meat: MeatModel, scaleX: number, scaleZ: number): MeatVisual {
+  const view = buildMeatVisual(meat, scaleX, scaleZ);
+  if (meat.portion && meat.definition.geometry === 'flat') {
+    const flesh = view.pickMeshes[0];
+    if (Array.isArray(flesh.material)) flesh.material = [...flesh.material, cutSurface(meat)];
+  }
+  return view;
+}
+
+function buildMeatVisual(meat: MeatModel, scaleX: number, scaleZ: number): MeatVisual {
   if(meat.definition.kind === 'matambre') return createMatambreVisual(meat, scaleX, scaleZ);
   if(meat.definition.kind === 'vacio') return createVacioVisual(meat, scaleX, scaleZ);
   if(meat.definition.kind === 'chorizo') return createChorizoVisual(meat, scaleX, scaleZ);

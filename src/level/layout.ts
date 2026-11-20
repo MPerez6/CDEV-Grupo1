@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { MEAT_KINDS, type MeatKind } from '../sim/meatCatalog.ts';
+import type { Point2 } from '../sim/meatCatalog.ts';
+import type { MeatModel } from '../sim/meat.ts';
+import { CONFIG } from '../sim/parameters.ts';
 
 export const PREP_TABLE = { x: 3.23, z: -4.04, width: 2.18, depth: 1.36, top: 1.02 };
 export const PREP_TABLE_BOUNDS = {
@@ -29,6 +32,27 @@ export function fridgePosition(kind: MeatKind): THREE.Vector3 {
 
 
 export const GRILL_LAYOUT = { left: -1.3, front: -3.55, width: 2.6, depth: 2.0 };
+
+const boardScaleX = BOARD_CUT_SCALE * GRILL_LAYOUT.width / CONFIG.grillWidthM;
+const boardScaleZ = BOARD_CUT_SCALE * GRILL_LAYOUT.depth / CONFIG.grillDepthM;
+export function boardMeatPosition(meat: MeatModel): THREE.Vector3 {
+  const p = boardPosition(), cut = meat.portion;
+  if (cut) {
+    p.x += cut.boardCenterM.x * boardScaleX;
+    p.z -= cut.boardCenterM.z * boardScaleZ;
+  }
+  return p;
+}
+export function boardToOriginal(meat: MeatModel, p: Point2): Point2 {
+  const base = boardMeatPosition(meat), center = meat.portion?.centerM;
+  return { x: (p.x - base.x) / boardScaleX + (center?.x ?? 0),
+    z: (base.z - p.z) / boardScaleZ * (meat.faceDown === 'a' ? 1 : -1) + (center?.z ?? 0) };
+}
+export function originalToBoard(meat: MeatModel, p: Point2): Point2 {
+  const base = boardMeatPosition(meat), center = meat.portion?.centerM;
+  return { x: base.x + (p.x - (center?.x ?? 0)) * boardScaleX,
+    z: base.z - (p.z - (center?.z ?? 0)) * boardScaleZ * (meat.faceDown === 'a' ? 1 : -1) };
+}
 
 // --- Ambientación del patio (propuesta rama escenario-patio). Solo decorado: no participa de la simulación. ---
 /** Mesa familiar bajo la parra, a la izquierda. Centro y medidas de la tapa (m). */

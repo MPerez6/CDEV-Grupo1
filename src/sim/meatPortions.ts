@@ -1,59 +1,74 @@
 import { MeatModel, type MeatPortion } from './meat.ts';
-import { polygonArea, type Point2 } from './meatCatalog.ts';
-import { intersectPolygons } from './meatFootprint.ts';
+import { MEAT_CATALOG, meatDimensions, polygonArea, type Point2 } from './meatCatalog.ts';
+import { containsPoint, originalOutline, signedDistance, splitOutline, type CutStroke } from './cutOutline.ts';
 
-function clipX(outline: readonly Point2[], x: number, side: -1 | 1): Point2[] {
-  const min = side === -1 ? -1 : x, max = side === -1 ? x : 1;
-  const points = intersectPolygons(outline, [{ x: min, z: -1 }, { x: max, z: -1 }, { x: max, z: 1 }, { x: min, z: 1 }]);
-  return points.filter((p, i) => {
-    const previous = points[(i + points.length - 1) % points.length];
-    return Math.hypot(previous.x - p.x, previous.z - p.z) > 1e-10;
-  });
+function equalAreaStroke(outline: Point2[]): CutStroke {
+  let low = Math.min(...outline.map(p => p.x)), high = Math.max(...outline.map(p => p.x));
+  const half = polygonArea(outline) / 2;
+  let x = 0;
+  for (let i = 0; i < 44; i++) {
+    x = (low + high) / 2;
+    const halves = splitOutline(outline, { from: { x, z: -1 }, to: { x, z: 1 } })!;
+    const left = halves.polygons.find(points => points.some(p => p.x < x - 1e-9))!;
+    if (polygonArea(left) < half) low = x;
+    else high = x;
+  }
+  return { from: { x, z: -1 }, to: { x, z: 1 } };
 }
 
-/** Un solo corte transversal: dos áreas iguales, sin perder masa ni espesor. */
-export function halveMeat(meat: MeatModel): [MeatModel, MeatModel] | null {
-  if (meat.portion) return null;
-  const original = meat.definition;
-  let line = 0;
-  if (original.geometry === 'flat') {
-    const halfArea = polygonArea(original.outline) / 2;
-    let left = -0.5, right = 0.5;
-    for (let i = 0; i < 42; i++) {
-      line = (left + right) / 2;
-      if (polygonArea(clipX(original.outline, line, -1)) < halfArea) left = line;
-      else right = line;
+/** Sin trazo explícito mantiene el reparto por mitades de las demostraciones anteriores. */
+export function halveMeat(meat: MeatModel, stroke?: CutStroke): [MeatModel, MeatModel] | null {
+  if (!stroke && meat.portion) return null;
+  const outline = originalOutline(meat);
+  const split = splitOutline(outline, stroke ?? equalAreaStroke(outline));
+  if (!split) return null;
+  const original = meat.definition, whole = MEAT_CATALOG[original.kind], source = meatDimensions(whole);
+  const fraction = stroke ? polygonArea(split.polygons[0]) / polygonArea(outline) : 0.5;
+  if (!Number.isFinite(fraction) || Math.min(fraction, 1 - fraction) < 1e-7) return null;
+  const parts = split.polygons.map((points, i) => {
+    const minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
+    const minZ = Math.min(...points.map(p => p.z)), maxZ = Math.max(...points.map(p => p.z));
+    const widthM = maxX - minX, depthM = maxZ - minZ, x = (minX + maxX) / 2, z = (minZ + maxZ) / 2;
+    const p = split.chord.from;
+    // El primer vértice interior al arco indica hacia dónde separar esa porción.
+    const inside = points.slice(1, -1).find(v => Math.abs(signedDistance(v, p, split.normal)) > 1e-9)!;
+    const side = Math.sign(signedDistance(inside, p, split.normal)) as -1 | 1;
+    const normal = { x: side * split.normal.x, z: side * split.normal.z };
+    const share = i === 0 ? fraction : 1 - fraction;
+    const firstBones = Math.round(original.boneCount * fraction);
+    const portion: MeatPortion = {
+      sourceId: meat.portion?.sourceId ?? meat.id, side, centerM: { x, z },
+      boardCenterM: {
+        x: (meat.portion?.boardCenterM.x ?? 0) + x - (meat.portion?.centerM.x ?? 0) + normal.x * .009,
+        z: (meat.portion?.boardCenterM.z ?? 0) + (z - (meat.portion?.centerM.z ?? 0) + normal.z * .009) * (meat.faceDown === 'a' ? 1 : -1),
+      },
+      cuts: [...(meat.portion?.cuts ?? []), { point: p, normal }],
+      dimensions: { widthM, depthM, areaM2: meat.dimensions.areaM2 * share },
+      uv: { u0: minX / source.widthM + .5, u1: maxX / source.widthM + .5,
+        v0: .5 - maxZ / source.depthM, v1: .5 - minZ / source.depthM },
+      definition: { ...original, massKg: original.massKg * share, aspectRatio: widthM / depthM,
+        outline: points.map(v => ({ x: (v.x - x) / widthM, z: (v.z - z) / depthM })),
+        boneCount: i === 0 ? firstBones : original.boneCount - firstBones },
+    };
+    const part = new MeatModel(original.kind, portion);
+    part.layersC.splice(0, part.layersC.length, ...meat.layersC);
+    Object.assign(part.brown, meat.brown);
+    Object.assign(part.burn, meat.burn);
+    Object.assign(part.surfaceC, meat.surfaceC);
+    Object.assign(part.casingDamage, meat.casingDamage);
+    part.juiciness = meat.juiciness;
+    part.faceDown = meat.faceDown;
+    part.totalSimSeconds = meat.totalSimSeconds;
+    part.hasReceivedGrillHeat = meat.hasReceivedGrillHeat;
+    return part;
+  });
+  // Un grano sobre el filo queda en una sola porción.
+  for (const grain of meat.grains) parts[containsPoint(split.polygons[0], grain.point) ? 0 : 1].grains.push(grain);
+  for (const part of parts) {
+    for (const kind of meat.seasonings) {
+      if (part.grains.some(g => g.kind === kind) || !meat.grains.some(g => g.kind === kind)) part.seasonings.push(kind);
     }
   }
-  function makeHalf(side: -1 | 1): MeatModel {
-    const outline = clipX(original.outline, line, side);
-    const minX = Math.min(...outline.map(p => p.x)), maxX = Math.max(...outline.map(p => p.x));
-    const minZ = Math.min(...outline.map(p => p.z)), maxZ = Math.max(...outline.map(p => p.z));
-    const dx = maxX - minX, dz = maxZ - minZ, cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-    const { widthM, depthM } = meat.dimensions;
-    const portion: MeatPortion = {
-      sourceId: meat.id, side, centerM: { x: cx * widthM, z: cz * depthM },
-      uv: { u0: minX + 0.5, u1: maxX + 0.5, v0: 0.5 - maxZ, v1: 0.5 - minZ },
-      definition: {
-        ...original,
-        massKg: original.massKg / 2,
-        aspectRatio: dx * widthM / (dz * depthM),
-        outline: outline.map(p => ({ x: (p.x - cx) / dx, z: (p.z - cz) / dz })),
-        boneCount: side === -1 ? Math.floor(original.boneCount / 2) : Math.ceil(original.boneCount / 2),
-      },
-    };
-    const half = new MeatModel(original.kind, portion);
-    half.layersC.splice(0, half.layersC.length, ...meat.layersC);
-    Object.assign(half.brown, meat.brown);
-    Object.assign(half.burn, meat.burn);
-    Object.assign(half.surfaceC, meat.surfaceC);
-    Object.assign(half.casingDamage, meat.casingDamage);
-    half.juiciness = meat.juiciness;
-    half.faceDown = meat.faceDown;
-    half.totalSimSeconds = meat.totalSimSeconds;
-    half.hasReceivedGrillHeat = meat.hasReceivedGrillHeat;
-    half.seasonings.push(...meat.seasonings);
-    return half;
-  }
-  return [makeHalf(-1), makeHalf(1)];
+  parts.sort((a, b) => a.portion!.centerM.x - b.portion!.centerM.x);
+  return [parts[0], parts[1]];
 }

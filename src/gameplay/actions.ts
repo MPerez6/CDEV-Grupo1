@@ -6,6 +6,8 @@ import { TOOL_NAMES } from './tools.ts';
 import { MEAT_CATALOG } from '../sim/meatCatalog.ts';
 import { SEASONINGS, SEASONING_LABELS, type Seasoning } from '../sim/seasoning.ts';
 import { donenessLabel, estimateOrderTip } from '../ai/client-brain.ts';
+import { originalOutline, splitOutline, type CutStroke } from '../sim/cutOutline.ts';
+import { boardToOriginal, originalToBoard } from '../level/layout.ts';
 
 export type ToolAnimationEvent =
   | 'equip'
@@ -52,12 +54,15 @@ export function createGameplay(
 ) {
   let activeTool = 0;
   let preparationTool: PreparationTool | null = null;
+  let knifeStroke: CutStroke | null = null;
+  let cutTarget: { meatId: number; stroke: CutStroke } | null = null;
   function notify(message: string): void { world.message = message; onMessage(message); }
   function selectPreparationTool(tool: PreparationTool): void {
     if(world.carriedMeatId !== null) return notify('Apoyá primero el corte sobre la tabla.');
     preparationTool = tool;
-    const action = tool.kind === 'knife' ? 'dividirla en dos' : 'condimentarla';
-    notify(`${preparationToolName(tool)}: mantené clic y arrastrá sobre la carne de la tabla para ${action}. 3 para volver a la pinza.`);
+    cutTarget = knifeStroke = null;
+    notify(tool.kind === 'knife' ? 'Arrastrá para marcar la línea de corte. Soltá el clic para cortar.'
+      : `${preparationToolName(tool)}: mantené clic y recorré la carne para condimentar.`);
   }
   function idleClickFeedback(): void {
     if(activeTool === 0) onToolAction('lighter-flick');
@@ -226,12 +231,42 @@ export function createGameplay(
   return {
     interact, primaryAction, get activeTool(): number { return activeTool; },
     get preparationTool(): PreparationTool | null { return preparationTool; },
+    get knifeStroke(): CutStroke | null { return knifeStroke; },
+    setKnifeStroke(stroke: CutStroke | null, preferredId?: number): void {
+      knifeStroke = cutTarget = null;
+      if (!stroke || preparationTool?.kind !== 'knife') return;
+      let nearest = Infinity;
+      for (const meat of world.meats) {
+        if (meat.location !== 'board' || (preferredId !== undefined && meat.id !== preferredId)) continue;
+        const local = { from: boardToOriginal(meat, stroke.from), to: boardToOriginal(meat, stroke.to) };
+        const split = splitOutline(originalOutline(meat), local);
+        if (!split) continue;
+        const endpoints = [split.chord.from, split.chord.to].map(p => originalToBoard(meat, p));
+        const along = (p: typeof endpoints[number]) => (p.x - stroke.from.x) * (stroke.to.x - stroke.from.x)
+          + (p.z - stroke.from.z) * (stroke.to.z - stroke.from.z);
+        endpoints.sort((a, b) => along(a) - along(b));
+        const distance = Math.max(0, along(endpoints[0]));
+        if (distance >= nearest) continue;
+        nearest = distance;
+        cutTarget = { meatId: meat.id, stroke: local };
+        knifeStroke = { from: endpoints[0], to: endpoints[1] };
+      }
+    },
+    finishCut(): boolean {
+      const cut = cutTarget;
+      knifeStroke = cutTarget = null;
+      if (!cut || preparationTool?.kind !== 'knife' || world.carriedMeatId !== null) return false;
+      const applied = world.cutMeatOnBoard(cut.meatId, cut.stroke);
+      notify(world.message); return applied;
+    },
     applyPreparation(target: InteractionTarget): boolean {
-      if(!preparationTool || world.carriedMeatId !== null || target.kind !== 'meat' || target.meatId === undefined
-        || world.meatById(target.meatId)?.location !== 'board') return false;
-      const applied = preparationTool.kind === 'knife' ? world.cutMeatOnBoard(target.meatId)
-        : world.seasonMeat(preparationTool.seasoning, target.meatId);
-      notify(world.message);
+      if(preparationTool?.kind !== 'seasoning' || world.carriedMeatId !== null || target.kind !== 'meat'
+        || target.meatId === undefined || !target.prepPoint) return false;
+      const piece = world.meatById(target.meatId);
+      if (piece?.location !== 'board') return false;
+      const fresh = !piece.seasonings.includes(preparationTool.seasoning);
+      const applied = world.seasonMeat(preparationTool.seasoning, piece.id, boardToOriginal(piece, target.prepPoint));
+      if (fresh && applied) notify(world.message);
       return applied;
     },
     rakeEmbers(fromTarget: InteractionTarget | null, toTarget: InteractionTarget | null): boolean {
@@ -255,6 +290,7 @@ export function createGameplay(
       if(!Number.isInteger(index) || index < 0 || index >= TOOL_NAMES.length) return;
       const changed = activeTool !== index;
       preparationTool = null;
+      cutTarget = knifeStroke = null;
       activeTool = index;
       if(changed) onToolAction('equip');
       notify(`Herramienta equipada: ${TOOL_NAMES[activeTool]}.`);

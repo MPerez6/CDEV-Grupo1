@@ -17,7 +17,7 @@ export function targetName(kind: TargetKind, index?: number): string {
     'board': '🔪 Tabla de preparación · [3 + E] Apoyar el corte de la pinza',
     'fridge-door': '🧊 Heladera · [E] Abrir o cerrar',
     'seasoning': `🧂 ${seasoning ? SEASONING_LABELS[seasoning] : 'Condimento'} · [E] Seleccionar`,
-    'prep-knife': '🔪 Cuchillo · [E] Seleccionar para cortar en dos',
+    'prep-knife': '🔪 Cuchillo del asador · [E] Elegir la línea de corte',
     'radio': '📻 Radio portátil · [E] Prender / cambiar estación / apagar',
     'dog': `🐕 ${DOG_NAME} · [E] Acariciar`,
     'plate': `🍽️ Plato (Lugar ${(index ?? 0) + 1}) · [3 + Clic / E] Servir corte al comensal`,

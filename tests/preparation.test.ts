@@ -101,26 +101,27 @@ test('seleccionar un frasco o hacer un clic no condimenta; arrastrar sobre carne
   assert.equal(world.meat.location, 'board');
   const input = new EventTarget();
   const piece = world.meat;
-  let hit: InteractionTarget = { kind: 'meat', meatId: piece.id, prepPoint: { x: 0, z: 0 } };
+  const board = boardPosition();
+  let hit: InteractionTarget = { kind: 'meat', meatId: piece.id, prepPoint: { x: board.x, z: board.z } };
   const unbind = bindPreparationStroke(input, { isPlaying: () => true, gameplay: game, getTarget: () => hit });
-  for (const index of [0, 1, 2]) {
+  for (const index of [0, 1, 2, 3]) {
     const jar = clickable.find(object => object.userData.kind === 'seasoning' && object.userData.index === index)!;
     const p = jar.position;
     const target = selectTargetFromRay(rayTo(p.x, p.y, p.z, PREP_TABLE_BOUNDS.z1), clickable, 2, { carryingMeat: false });
     assert.equal(target?.index, index);
     game.interact(target);
     assert.equal(piece.seasonings.length, index);
-    hit = { kind: 'meat', meatId: piece.id, prepPoint: { x: 0, z: 0 } };
+    hit = { kind: 'meat', meatId: piece.id, prepPoint: { x: board.x, z: board.z } };
     mouse(input, 'mousedown');
     assert.equal(piece.seasonings.length, index);
-    hit.prepPoint = { x: 0.09, z: 0 };
+    hit.prepPoint = { x: board.x + 0.09, z: board.z };
     mouse(input, 'mousemove');
     mouse(input, 'mouseup', 0);
     assert.equal(piece.seasonings.length, index + 1);
   }
   unbind();
   game.equip(2);
-  assert.deepEqual(piece.seasonings, ['salt', 'chimichurri', 'brine']);
+  assert.deepEqual(piece.seasonings, ['salt', 'chimichurri', 'brine', 'pepper']);
   const other = world.meats[1];
   assert.deepEqual(other.seasonings, []);
   assert.ok(world.takeMeat(other.id));
@@ -129,10 +130,10 @@ test('seleccionar un frasco o hacer un clic no condimenta; arrastrar sobre carne
   assert.ok(world.placeMeat(0));
   game.interact({ kind: 'meat', meatId: world.meat.id });
   assert.ok(world.placeMeat(23));
-  assert.deepEqual(piece.seasonings, ['salt', 'chimichurri', 'brine']);
+  assert.deepEqual(piece.seasonings, ['salt', 'chimichurri', 'brine', 'pepper']);
 });
 
-test('un matambre cocido se corta con un trazo, y dos clientes pueden recibir sus mitades por separado', () => {
+test('un matambre cocido se corta en diagonal donde se arrastra, y se sirven las porciones a dos clientes', () => {
   const world = stockedWorld();
   world.clients.enabled = true;
   for (let seat = 0; seat < 2; seat++) {
@@ -150,20 +151,24 @@ test('un matambre cocido se corta con un trazo, y dos clientes pueden recibir su
   meat.layersC.fill(71); meat.brown.a = meat.brown.b = 45;
   const game = createGameplay(world);
   const input = new EventTarget();
-  const hit: InteractionTarget = { kind: 'meat', meatId: meat.id, prepPoint: { x: 0, z: 0 } };
+  const board = boardPosition();
+  const hit: InteractionTarget = { kind: 'meat', meatId: meat.id, prepPoint: { x: board.x - .26, z: board.z + .12 } };
   const unbind = bindPreparationStroke(input, { isPlaying: () => true, gameplay: game, getTarget: () => hit });
   game.interact({ kind: 'prep-knife' });
   mouse(input, 'mousedown');
   assert.equal(world.meats.filter(m => m.location === 'board').length, 1);
-  hit.prepPoint = { x: 0.12, z: 0 };
+  hit.prepPoint = { x: board.x - .19, z: board.z - .09 };
   mouse(input, 'mousemove');
+  assert.ok(game.knifeStroke);
+  assert.equal(world.meats.filter(m => m.location === 'board').length, 1);
   mouse(input, 'mouseup', 0);
   unbind();
   const halves = world.meats.filter(m => m.location === 'board');
   assert.equal(halves.length, 2);
   assert.equal(world.meatById(meat.id), undefined);
+  assert.ok(Math.abs(halves[0].definition.massKg - halves[1].definition.massKg) > .2);
+  assert.ok(Math.abs(halves[0].definition.massKg + halves[1].definition.massKg - 1.5) < 1e-9);
   for (const [seat, half] of halves.entries()) {
-    assert.equal(half.definition.massKg, 0.75);
     assert.equal(half.centerC, 71);
     assert.deepEqual(half.seasonings, ['salt']);
     assert.ok(world.takeMeat(half.id));

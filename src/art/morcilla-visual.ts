@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { meatDimensions, MEAT_CATALOG } from '../sim/meatCatalog.ts';
+import { clipFoodDetails } from './portion-mesh.ts';
+import { cutSurface } from './cut-surface.ts';
 import type { MeatModel } from '../sim/meat.ts';
 import type { MeatVisual } from './meat-visual.ts';
 
@@ -282,7 +285,7 @@ function createCasingMaterial(): { material: THREE.MeshPhysicalMaterial; update:
 }
 
 export function createMorcillaVisual(meat: MeatModel, scaleX: number, scaleZ: number): MeatVisual {
-  const d = meat.definition, size = meat.dimensions;
+  const d = MEAT_CATALOG[meat.definition.kind], size = meat.portion ? meatDimensions(d) : meat.dimensions;
   const group = new THREE.Group(), projection = new THREE.Group(), orientation = new THREE.Group(), body = new THREE.Group();
 
   group.name = `meat-morcilla-${meat.id}`;
@@ -311,6 +314,7 @@ export function createMorcillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
     tie.rotation.z = Math.PI / 2;
     tie.position.set(sign * size.widthM * 0.485, d.thicknessM / 2, 0);
   }
+  if (meat.portion) clipFoodDetails(pickMeshes, meat.portion, cutSurface(meat));
 
   return {
     group,

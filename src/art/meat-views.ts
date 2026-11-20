@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { CONFIG } from '../sim/parameters.ts';
 import type { SimulationWorld } from '../sim/world.ts';
-import { BOARD_CUT_SCALE, FRIDGE_CUT_SCALE, GRILL_LAYOUT, boardPosition, fridgePosition } from '../level/layout.ts';
+import { BOARD_CUT_SCALE, FRIDGE_CUT_SCALE, GRILL_LAYOUT, boardMeatPosition, fridgePosition } from '../level/layout.ts';
 import { CLIENT_SEATS } from '../ai/client-brain.ts';
 import { createMeatVisual, type MeatVisual } from './meat-visual.ts';
-import { addSeasoningMarks } from './meat-seasoning.ts';
-import type { Seasoning } from '../sim/seasoning.ts';
+import { createSeasoningView } from './meat-seasoning.ts';
 
 export function createMeatViews(
   scene: THREE.Scene,
@@ -15,9 +14,9 @@ export function createMeatViews(
 ) {
   const { left, front, width, depth } = GRILL_LAYOUT;
   const meatVisuals = new Map<number, MeatVisual>();
-  const marks = new Map<number, Map<Seasoning, THREE.Points[]>>();
+  const marks = new Map<number, ReturnType<typeof createSeasoningView>>();
   return {
-    views: meatVisuals, update(world: SimulationWorld): void {
+    views: meatVisuals, update(world: SimulationWorld, elapsedReal = 0): void {
       const activeIds = new Set(world.meats.map(meat => meat.id));
       for (const [id, view] of meatVisuals) {
         if (activeIds.has(id)) continue;
@@ -29,6 +28,7 @@ export function createMeatViews(
         view.group.traverse(object => {
           if (!(object instanceof THREE.Mesh || object instanceof THREE.Points)) return;
           geometries.add(object.geometry);
+          if (object instanceof THREE.InstancedMesh) object.dispose();
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
         });
         for (const geometry of geometries) geometry.dispose();
@@ -59,12 +59,7 @@ export function createMeatViews(
         }
         else if(meat.location === 'fridge') view.group.position.copy(fridgePosition(meat.definition.kind));
         else {
-          view.group.position.copy(boardPosition());
-          if (meat.portion) {
-            const { centerM, side } = meat.portion;
-            view.group.position.x += centerM.x * width / CONFIG.grillWidthM * BOARD_CUT_SCALE + side * 0.035;
-            view.group.position.z -= centerM.z * depth / CONFIG.grillDepthM * BOARD_CUT_SCALE * (meat.faceDown === 'a' ? 1 : -1);
-          }
+          view.group.position.copy(boardMeatPosition(meat));
         }
         view.update();
         for (const part of view.pickMeshes) part.userData.onPrepBoard = meat.location === 'board';
@@ -77,18 +72,9 @@ export function createMeatViews(
           view.group.scale.setScalar(FRIDGE_CUT_SCALE);
           for(const part of view.pickMeshes) part.userData.enabled = world.fridgeOpen;
         }
-        if (meat.seasonings.length || marks.has(meat.id)) {
-          const applied = marks.get(meat.id) ?? new Map<Seasoning, THREE.Points[]>();
-          marks.set(meat.id, applied);
-          for (const [seasoning, points] of applied) {
-            if (meat.seasonings.includes(seasoning)) continue;
-            for (const dot of points) { dot.removeFromParent(); dot.geometry.dispose(); (dot.material as THREE.PointsMaterial).dispose(); }
-            applied.delete(seasoning);
-          }
-          for (const seasoning of meat.seasonings) {
-            if (!applied.has(seasoning)) applied.set(seasoning, addSeasoningMarks(view, seasoning));
-          }
-        }
+        let grains = marks.get(meat.id);
+        if (!grains) { grains = createSeasoningView(view, meat); marks.set(meat.id, grains); }
+        grains.update(elapsedReal);
       }
     }
   };

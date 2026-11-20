@@ -36,7 +36,9 @@ export function createMeatSurfaceGeometry(meat: MeatModel, profile: SurfaceProfi
       const t = THREE.MathUtils.clamp(p.clone().sub(a).dot(ab) / ab.lengthSq(), 0, 1);
       return p.distanceTo(a.clone().addScaledVector(ab, t));
     }));
-    const cutEdge = meat.portion && Math.abs(p.x + meat.portion.side * w / 2) < 1e-7;
+    const portion = meat.portion;
+    const cutEdge = portion?.cuts.some(cut => Math.abs((p.x + portion.centerM.x - cut.point.x) * cut.normal.x
+      + (p.y + portion.centerM.z - cut.point.z) * cut.normal.z) < 1e-7);
     const edge = cutEdge ? 1 : THREE.MathUtils.smoothstep(distance, 0, settings.edgeBlendM);
     const ripple = Math.sin(p.x * 71 + Math.sin(p.y * 37)) * Math.sin(p.y * 93 + p.x * 18);
     const y = top ? thickness * (settings.topEdge + (settings.topCenter - settings.topEdge) * edge + ripple * settings.rippleTop * edge)
@@ -61,8 +63,28 @@ export function createMeatSurfaceGeometry(meat: MeatModel, profile: SurfaceProfi
     else edges.set(key, { a: from, b: to, count: 1 });
   }
   const sideStart = indices.length;
-  for(const { a, b, count } of edges.values()) if(count === 1) indices.push(a, b, b + n, a, b + n, a + n);
+  const fresh: {a:number;b:number}[] = [];
+  for(const { a, b, count } of edges.values()) if(count === 1) {
+    const portion = meat.portion;
+    const isCut = portion?.cuts.some(c => [points[a],points[b]].every(p =>
+      Math.abs((p.x + portion.centerM.x - c.point.x)*c.normal.x + (p.y + portion.centerM.z - c.point.z)*c.normal.z) < 1e-7));
+    if (isCut) fresh.push({a,b});
+    else indices.push(a, b, b + n, a, b + n, a + n);
+  }
   geometry.addGroup(sideStart, indices.length - sideStart, 2);
+  const freshStart = indices.length;
+  for (const {a,b} of fresh) {
+    const start = vertices.length/3;
+    const dx=points[b].x-points[a].x, dz=points[b].y-points[a].y, length=Math.hypot(dx,dz);
+    if (length < 1e-10) continue;
+    for (const i of [a,b,b+n,a+n]) {
+      const px=vertices[3*i], py=vertices[3*i+1], pz=vertices[3*i+2];
+      vertices.push(px,py,pz);
+      uvs.push((px*dx-pz*dz)/length*18,py*30);
+    }
+    indices.push(start,start+1,start+2,start,start+2,start+3);
+  }
+  if (indices.length > freshStart) geometry.addGroup(freshStart,indices.length-freshStart,3);
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);

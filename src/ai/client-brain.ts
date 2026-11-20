@@ -60,12 +60,13 @@ export type SeatInfo = {
 /**
  * 8 asientos (2 por cada una de las 4 mesitas del restaurante: lado izquierdo y lado derecho).
  */
+const DINING_AISLE_Z = .65;
 export const CLIENT_SEATS: readonly SeatInfo[] = RESTAURANT_TABLES.flatMap((t, tIdx) => [
   {
     index: tIdx * 2,
     tableNumber: t.tableNumber,
     chairPos: { x: t.x - 0.74, z: t.z },
-    approachPos: { x: t.x - 1.05, z: t.z },
+    approachPos: { x: t.x - 0.74, z: t.z + Math.sign(DINING_AISLE_Z - t.z) * 0.55 },
     platePos: { x: t.x - 0.25, y: t.topY + 0.042, z: t.z },
     sitYaw: Math.PI / 2,
     sideLabel: `Mesa ${t.tableNumber} (izq.)`,
@@ -74,7 +75,7 @@ export const CLIENT_SEATS: readonly SeatInfo[] = RESTAURANT_TABLES.flatMap((t, t
     index: tIdx * 2 + 1,
     tableNumber: t.tableNumber,
     chairPos: { x: t.x + 0.74, z: t.z },
-    approachPos: { x: t.x + 1.05, z: t.z },
+    approachPos: { x: t.x + 0.74, z: t.z + Math.sign(DINING_AISLE_Z - t.z) * 0.55 },
     platePos: { x: t.x + 0.25, y: t.topY + 0.042, z: t.z },
     sitYaw: -Math.PI / 2,
     sideLabel: `Mesa ${t.tableNumber} (der.)`,
@@ -88,26 +89,18 @@ export const DOOR_INSIDE: Vec2 = { x: -1.52, z: 3.85 };
 
 export function routeToSeat(seatIndex: number): Vec2[] {
   const seat = CLIENT_SEATS[seatIndex];
-  const aisleZ = seat.chairPos.z > 0.6 ? 2.95 : 0.65;
   return [
     { ...DOOR_THRESHOLD },
     { ...DOOR_INSIDE },
-    { x: seat.approachPos.x, z: aisleZ },
+    { x: DOOR_INSIDE.x, z: DINING_AISLE_Z },
+    { x: seat.approachPos.x, z: DINING_AISLE_Z },
     { ...seat.approachPos },
     { ...seat.chairPos },
   ];
 }
 
 export function routeFromSeat(seatIndex: number): Vec2[] {
-  const seat = CLIENT_SEATS[seatIndex];
-  const aisleZ = seat.chairPos.z > 0.6 ? 2.95 : 0.65;
-  return [
-    { ...seat.approachPos },
-    { x: seat.approachPos.x, z: aisleZ },
-    { ...DOOR_INSIDE },
-    { ...DOOR_THRESHOLD },
-    { ...DOOR_SPAWN },
-  ];
+  return [...routeToSeat(seatIndex).slice(0, -1).reverse(), { ...DOOR_SPAWN }];
 }
 
 export type ClientOrder = {

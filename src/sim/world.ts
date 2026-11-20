@@ -1,7 +1,8 @@
 import { BrazierModel, consumeEmber, HeatGrid, isFuelBurning, type DroppedPiece, type EmberPiece } from './embers.ts';
 import { MeatModel, type MeatStorage } from './meat.ts';
 import { CONFIG } from './parameters.ts';
-import { type MeatKind } from './meatCatalog.ts';
+import { type MeatKind, type Point2 } from './meatCatalog.ts';
+import { containsPoint, originalOutline, type CutStroke } from './cutOutline.ts';
 import { footprintCoverage, polygonOverlapArea, meatFootprint } from './meatFootprint.ts';
 import { ClientManager, type ClientEvent } from '../ai/client-brain.ts';
 import { SEASONING_LABELS, type Seasoning } from './seasoning.ts';
@@ -110,7 +111,7 @@ export class SimulationWorld {
     const meat = this.carriedMeatId === null ? undefined : this.meatById(this.carriedMeatId);
     if (!meat) return false;
     if (this.meats.some(m => m.location === 'board'
-      && (!meat.portion || m.portion?.sourceId !== meat.portion.sourceId || m.portion.side === meat.portion.side))) {
+      && (!meat.portion || m.portion?.sourceId !== meat.portion.sourceId))) {
       this.message = 'La tabla está ocupada. Retirá las piezas antes de apoyar otro corte.';
       return false;
     }
@@ -121,23 +122,35 @@ export class SimulationWorld {
     this.message = `${meat.displayName} en la mesa. Elegí un condimento o el cuchillo con E.`;
     return true;
   }
-  seasonMeat(seasoning: Seasoning, meatId: number): boolean {
+  seasonMeat(seasoning: Seasoning, meatId: number, point?: Point2): boolean {
     const meat = this.meatById(meatId);
     if (!meat || meat.location !== 'board') return false;
     const label = SEASONING_LABELS[seasoning];
-    if (meat.seasonings.includes(seasoning)) { this.message = `${meat.displayName} ya tiene ${label.toLowerCase()}.`; return false; }
-    meat.seasonings.push(seasoning);
+    if (!point && meat.seasonings.includes(seasoning)) { this.message = `${meat.displayName} ya tiene ${label.toLowerCase()}.`; return false; }
+    const outline = originalOutline(meat), center = meat.portion?.centerM ?? { x: 0, z: 0 };
+    let seed = Math.imul(meat.id + 1, 65537) + (meat.grains.length + 1) * 3571;
+    const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+    const before = meat.grains.length;
+    for (let i = 0; i < (point ? 9 : 96) && meat.grains.length < 900; i++) {
+      const radius = .014 * Math.sqrt(random()), angle = random() * 2 * Math.PI;
+      const target = point ? { x: point.x + Math.cos(angle) * radius, z: point.z + Math.sin(angle) * radius }
+        : { x: center.x + (random() - .5) * meat.dimensions.widthM, z: center.z + (random() - .5) * meat.dimensions.depthM };
+      if (containsPoint(outline, target)) meat.grains.push({ kind: seasoning, point: target, origin: point ?? target,
+        face: meat.faceDown === 'a' ? 'b' : 'a', seed: random() });
+    }
+    if (meat.grains.length === before) return false;
+    if (!meat.seasonings.includes(seasoning)) meat.seasonings.push(seasoning);
     this.message = `Agregaste ${label.toLowerCase()} a ${meat.displayName}.`;
     return true;
   }
-  cutMeatOnBoard(meatId: number): boolean {
+  cutMeatOnBoard(meatId: number, stroke?: CutStroke): boolean {
     const meat = this.meatById(meatId);
     if (!meat || meat.location !== 'board') return false;
-    const halves = halveMeat(meat);
-    if (!halves) { this.message = 'Ese corte ya está dividido en dos porciones.'; return false; }
+    const halves = halveMeat(meat, stroke);
+    if (!halves) { this.message = 'Trazá una línea que atraviese la carne y deje dos porciones.'; return false; }
     this.meats.splice(this.meats.indexOf(meat), 1, ...halves);
     this.coverageCache.delete(meat.id);
-    this.message = `Cortaste ${meat.definition.name} en dos porciones. Equipá la pinza (3) para retirar cada mitad.`;
+    this.message = `Cortaste ${meat.definition.name}: ${Math.round(halves[0].definition.massKg * 1000)} g y ${Math.round(halves[1].definition.massKg * 1000)} g. Retirá una porción con la pinza (3).`;
     return true;
   }
   serveMeatToSeat(seatIndex: number): boolean {

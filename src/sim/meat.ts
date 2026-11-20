@@ -1,11 +1,13 @@
 import { CONFIG } from './parameters.ts';
 import { MEAT_CATALOG, MEAT_THERMAL as P, meatDimensions, type MeatDefinition, type MeatKind, type Point2 } from './meatCatalog.ts';
-import type { Seasoning } from './seasoning.ts';
+import type { Seasoning, SeasoningGrain } from './seasoning.ts';
 export type Side = 'a' | 'b';
 export type MeatState = 'raw' | 'undercooked' | 'cooked' | 'dry' | 'burned' | 'precooked' | 'reheating';
 export type MeatStorage = 'board' | 'fridge';
 export type MeatPortion = Readonly<{
   sourceId: number; side: -1 | 1; centerM: Point2; definition: MeatDefinition;
+  boardCenterM: Point2; cuts: readonly { point: Point2; normal: Point2 }[];
+  dimensions: { widthM: number; depthM: number; areaM2: number };
   uv: Readonly<{ u0: number; u1: number; v0: number; v1: number }>;
 }>;
 let nextMeatId = 1;
@@ -27,6 +29,7 @@ export class MeatModel {
   public faceDown: Side = 'a';
   public location: MeatStorage | 'carried' | 'grill' | 'served' = 'board';
   public readonly seasonings: Seasoning[] = [];
+  public readonly grains: SeasoningGrain[] = [];
   public servedSeat: number | null = null;
   public positionM = { x: CONFIG.grillWidthM / 2, z: CONFIG.grillDepthM / 2 };
   public quarterTurns = 0;
@@ -35,7 +38,7 @@ export class MeatModel {
   constructor(kind: MeatKind = 'matambre', portion?: MeatPortion) {
     this.portion = portion;
     this.definition = portion?.definition ?? MEAT_CATALOG[kind];
-    this.dimensions = meatDimensions(this.definition);
+    this.dimensions = portion?.dimensions ?? meatDimensions(this.definition);
     const d = this.definition, n = CONFIG.meatLayerCount;
     if (d.geometry === 'flat') {
       this.layerMassKg = Array(n).fill(d.massKg / n);
@@ -48,10 +51,14 @@ export class MeatModel {
       const centers = this.layerMassKg.map((_, i) =>
         (2 / 3) * (radii[i] ** 3 - radii[i + 1] ** 3) / (radii[i] ** 2 - radii[i + 1] ** 2));
       this.conductanceWK = Array.from({ length: n - 1 }, (_, i) =>
-        d.conductivityWmK * 2 * Math.PI * radii[i + 1] * this.dimensions.widthM / (centers[i] - centers[i + 1]));
+        d.conductivityWmK * 2 * Math.PI * radii[i + 1] * this.dimensions.areaM2 / d.thicknessM / (centers[i] - centers[i + 1]));
     }
   }
-  get displayName(): string { return this.portion ? `½ ${this.definition.name}` : this.definition.name; }
+  get displayName(): string {
+    if (!this.portion) return this.definition.name;
+    const grams = Math.round(this.definition.massKg * 1000);
+    return `${this.definition.name} · ${grams} g`;
+  }
   get onGrill(): boolean { return this.location === 'grill'; }
   set onGrill(value: boolean) { this.location = value ? 'grill' : 'board'; }
   flip(): void { this.faceDown = this.faceDown === 'a' ? 'b' : 'a'; }
@@ -65,6 +72,7 @@ export class MeatModel {
     this.faceDown = 'a';
     this.location = location;
     this.seasonings.length = 0;
+    this.grains.length = 0;
     this.servedSeat = null;
     this.quarterTurns = 0;
     this.totalSimSeconds = 0;
@@ -86,8 +94,10 @@ export class MeatModel {
     const ambientC = this.location === 'fridge' ? CONFIG.meatInitialC : CONFIG.ambientC;
     if (radial) {
       const r = d.thicknessM / 2;
-      const exteriorArea = 2 * Math.PI * r * this.dimensions.widthM + 2 * Math.PI * r * r;
-      energyJ[0] -= conv * exteriorArea * (1 + P.lowerConvectionFactor) / 2 * (this.layersC[0] - ambientC) * dt;
+      const exteriorArea = 2 * Math.PI * r * this.dimensions.areaM2 / d.thicknessM + 2 * Math.PI * r * r;
+      const cooling = Math.min(conv * exteriorArea * (1 + P.lowerConvectionFactor) / 2 * dt,
+        this.layerMassKg[0] * d.specificHeatJKgK);
+      energyJ[0] -= cooling * (this.layersC[0] - ambientC);
     } else {
       energyJ[lower] -= conv * area * (this.layersC[lower] - ambientC) * dt * P.lowerConvectionFactor;
       energyJ[upper] -= conv * area * (this.layersC[upper] - ambientC) * dt;
@@ -99,7 +109,9 @@ export class MeatModel {
     }
     const evapG = Math.min(this.onGrill ? Math.max(0, this.layersC[lower] - P.evaporationStartC)
       * P.evaporationGPerDegreeSecond * dt : 0, this.juiciness * P.evaporationJuiceCap);
-    energyJ[lower] -= evapG / 1000 * P.latentHeatJKg;
+    // Dos porciones a igual temperatura evaporan, en conjunto, el agua de la pieza de origen.
+    const massShare = this.portion ? d.massKg / MEAT_CATALOG[d.kind].massKg : 1;
+    energyJ[lower] -= evapG * massShare / 1000 * P.latentHeatJKg;
     this.juiciness = Math.max(0, this.juiciness - evapG * P.juiceLossPerG);
     for (let i = 0; i < n; i++) this.layersC[i] += energyJ[i] / (this.layerMassKg[i] * d.specificHeatJKgK);
     const side = this.faceDown, other: Side = side === 'a' ? 'b' : 'a';

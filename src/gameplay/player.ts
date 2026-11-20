@@ -88,7 +88,7 @@ function targetFromHit(hit: THREE.Intersection | undefined, direction: THREE.Vec
   }
   const kind = hit.object.userData.kind as TargetKind;
   const prepPoint = kind === 'board' || (kind === 'meat' && hit.object.userData.onPrepBoard)
-    ? { x: hit.point.x, z: hit.point.z } : undefined;
+    ? { x: hit.point.x, z: hit.point.z, y: hit.point.y } : undefined;
   return { kind, index: hit.object.userData.index, meatId: hit.object.userData.meatId, prepPoint };
 }
 

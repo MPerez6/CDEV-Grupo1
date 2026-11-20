@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { meatDimensions, MEAT_CATALOG } from '../sim/meatCatalog.ts';
+import { clipFoodDetails } from './portion-mesh.ts';
 import type { MeatModel, Side } from '../sim/meat.ts';
 import type { MeatVisual } from './meat-visual.ts';
 import { createMeatSurfaceGeometry } from './meat-surface-geometry.ts';
@@ -343,7 +345,7 @@ function createRibBoneGeometry(ribWidth: number, ribHeight: number, ribLength: n
 }
 
 export function createCostillaVisual(meat: MeatModel, scaleX: number, scaleZ: number): MeatVisual {
-  const d = meat.definition, size = meat.dimensions;
+  const d = MEAT_CATALOG[meat.definition.kind], size = meat.portion ? meatDimensions(d) : meat.dimensions;
   const group = new THREE.Group(), projection = new THREE.Group(), orientation = new THREE.Group(), body = new THREE.Group();
 
   group.name = `meat-costilla-${meat.id}`;
@@ -426,6 +428,11 @@ export function createCostillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
     }
   }
 
+  if (meat.portion) {
+    const bones = pickMeshes.slice(1);
+    clipFoodDetails(bones, meat.portion, boneMat);
+    pickMeshes.splice(1, pickMeshes.length - 1, ...bones);
+  }
   return {
     group,
     pickMeshes,

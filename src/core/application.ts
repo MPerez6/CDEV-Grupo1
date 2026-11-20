@@ -169,7 +169,8 @@ export function startApplication(app: HTMLElement): () => void {
     }
 
     if(controls.isLocked && !document.hidden) clock.advance(frameSeconds, dt => world.tick(dt));
-    visual.updateVisuals(world, elapsedReal, gameplay.preparationTool ? -1 : gameplay.activeTool);
+    visual.updateVisuals(world, elapsedReal, gameplay.preparationTool ? -1 : gameplay.activeTool,
+      gameplay.preparationTool, gameplay.preparationTool && controls.isLocked ? target() : null, gameplay.knifeStroke);
     uiTimer += realDt;
     if(uiTimer > 0.15) { updateHud(); uiTimer = 0; }
     audio.update(Math.max(0, ...world.meats.map(meat => world.meatFluxWm2(meat))), controls.isLocked);

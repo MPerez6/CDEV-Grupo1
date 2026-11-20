@@ -13,6 +13,9 @@ import { createRestaurante } from '../level/restaurante.ts';
 import { createSky } from '../level/sky.ts';
 import { createFridge } from '../level/fridge.ts';
 import { createPrepTable } from '../level/prep-table.ts';
+import type { PreparationTool } from '../gameplay/actions.ts';
+import type { InteractionTarget } from '../gameplay/targets.ts';
+import type { CutStroke } from '../sim/cutOutline.ts';
 
 /** Compone los módulos visuales; no calcula física ni procesa entradas. */
 export function createScene() {
@@ -30,7 +33,7 @@ export function createScene() {
   createPatioLighting(scene);
   const sky = createSky(scene);
   createPatio(scene, clickable);
-  createPrepTable(scene, clickable);
+  const preparation = createPrepTable(scene, clickable);
   const fridge = createFridge(scene, clickable);
   const grill = createGrill(scene, clickable);
   const brazier = createBrazier(scene, clickable, { position: ASADOR_LAYOUT.brazierPosition, scale: ASADOR_LAYOUT.brazierScale, hearth: false });
@@ -48,7 +51,8 @@ export function createScene() {
     camera,
     clickable,
     triggerToolAction: tools.triggerAction,
-    updateVisuals(world: SimulationWorld, elapsedReal: number, activeTool = 0): void {
+    updateVisuals(world: SimulationWorld, elapsedReal: number, activeTool = 0, prepTool: PreparationTool | null = null,
+      aim: InteractionTarget | null = null, stroke: CutStroke | null = null): void {
       const isRestaurant = world.clients.enabled;
       restaurante.setActive(isRestaurant);
       if(familyGroup) familyGroup.visible = !isRestaurant;
@@ -65,7 +69,8 @@ export function createScene() {
       brazier.updateVisuals(world, elapsedReal);
       embers.update(world, elapsedReal);
       tools.update(world, activeTool, elapsedReal);
-      meats.update(world);
+      meats.update(world, elapsedReal);
+      preparation.update(camera, prepTool, aim, stroke, elapsedReal);
       clientViews.update(world.clients, elapsedReal);
     }
   };

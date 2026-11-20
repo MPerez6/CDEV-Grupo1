@@ -4,9 +4,9 @@
 
 La heladera está a la derecha de la mesa del asador. Abrí o cerrá con **E** sobre las puertas o el cartel superior. Con la pinza (**3**) apuntá al corte y presioná **E** para sacarlo. Cada extracción repone en el acto una pieza fría, del mismo tipo y sin condimentos. Al terminar de comer sólo se retira lo que se sirvió.
 
-Apoyá una pieza en la tabla con **E** o clic. Usá **E** sobre un frasco para seleccionar sal gruesa, chimichurri o salmuera. Mantené **clic izquierdo** y mové la mira por encima de la carne para aplicar el condimento. Los condimentos quedan en la pieza al retirarla.
+Apoyá una pieza en la tabla con **E** o clic. Seleccioná con **E** el salero, el molinillo de pimienta, el chimichurri o la salmuera. Mantené **clic izquierdo** y recorré la zona que quieras condimentar. Los granos quedan en esa cara y acompañan a la porción que los recibió.
 
-Seleccioná el **cuchillo** con **E** y repetí el gesto para dividir un corte entero, crudo o cocido, en dos porciones iguales. Cada mitad conserva su espesor, las cinco temperaturas, las caras, la jugosidad y los condimentos. Volvé a la **pinza (3)** para recoger y servir cada mitad. La tabla admite un corte entero o sus dos mitades; cada mitad se puede cocinar y entregar por separado.
+Seleccioná el **cuchillo** con **E**, mantené clic y dibujá una línea sobre la carne cruda o cocida. La guía muestra por dónde va a pasar la hoja. Soltá el clic para cortar. La posición y el ángulo determinan el contorno y el peso de las porciones. Podés volver a cortar cualquiera de ellas. Cada porción conserva las cinco temperaturas, el dorado y la jugosidad. Volvé a la **pinza (3)** para recogerla, cocinarla o servirla por separado.
 
 ## Cómo evalúa una entrega
 

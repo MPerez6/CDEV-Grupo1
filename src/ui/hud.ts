@@ -217,7 +217,8 @@ export function createHud(app: HTMLElement, initialMessage: string) {
     const kind = target?.kind as TargetKind | undefined;
     $('crosshair').dataset.active = kind ? 'true' : 'false';
     const prepHint = state.preparationTool && target?.prepPoint
-      ? `${preparationToolName(state.preparationTool)} · Mantené clic y arrastrá sobre la carne · [3] Volver a la pinza` : null;
+      ? state.preparationTool.kind === 'knife' ? 'Arrastrá para marcar el corte · Soltá para cortar · [3] Pinza'
+        : `${preparationToolName(state.preparationTool)} · Arrastrá sobre la zona a condimentar · [3] Pinza` : null;
     $('target').innerHTML = prepHint ? formatTargetHtml(prepHint) : kind ? formatTargetHtml(targetName(kind, target?.index)) : '';
     if (world.message !== lastMsg) { lastMsg = world.message; flash(world.message); }
     renderMeatCard(world, target);
