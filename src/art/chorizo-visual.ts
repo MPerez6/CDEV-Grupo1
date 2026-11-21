@@ -4,6 +4,7 @@ import { clipFoodDetails } from './portion-mesh.ts';
 import { cutSurface } from './cut-surface.ts';
 import type { MeatModel } from '../sim/meat.ts';
 import type { MeatVisual } from './meat-visual.ts';
+import { createSausageCasing } from './sausage-casing.ts';
 
 let rawAtlas: THREE.Texture | undefined;
 let cookedAtlas: THREE.Texture | undefined;
@@ -154,162 +155,18 @@ function createChorizoCapsuleGeometry(widthM: number, thicknessM: number, scaleX
   return geometry;
 }
 
-function createCasingMaterial(): { material: THREE.MeshPhysicalMaterial; update: (meat: MeatModel) => void; } {
-  const textures = textureSet();
-  const material = new THREE.MeshPhysicalMaterial({
-    name: 'chorizo-casing',
-    map: textures.rawMap,
-    bumpMap: textures.bump,
-    bumpScale: 0.00035,
-    color: 0xffffff,
-    metalness: 0,
-    roughness: 0.38,
-    clearcoat: 0.28,
-    clearcoatRoughness: 0.24,
-    ior: 1.42,
-    side: THREE.DoubleSide,
-  });
+// Hilo de atar: se tuesta y se ahúma, sin volverse naranja.
+const TWINE_COOKED = new THREE.Color(0x9a7650), TWINE_BURNT = new THREE.Color(0x2a1d14);
 
-  const cookA = { value: 0 }, cookB = { value: 0 };
-  const burnA = { value: 0 }, burnB = { value: 0 };
-  const cookedTexUniform = { value: textures.cookedMap };
-  const sideHeat = { a: 0, b: 0 };
-  let lastSimSeconds = 0;
-
-  material.onBeforeCompile = shader => {
-    shader.uniforms.meatCookA = cookA;
-    shader.uniforms.meatCookB = cookB;
-    shader.uniforms.meatBurnA = burnA;
-    shader.uniforms.meatBurnB = burnB;
-    shader.uniforms.cookedMap = cookedTexUniform;
-    shader.fragmentShader = `
-      uniform float meatCookA;
-      uniform float meatCookB;
-      uniform float meatBurnA;
-      uniform float meatBurnB;
-      uniform sampler2D cookedMap;
-      float chorizoHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float chorizoNoise(vec2 p) {
-        vec2 i = floor(p), f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        return mix(
-          mix(chorizoHash(i), chorizoHash(i + vec2(1.0, 0.0)), f.x),
-          mix(chorizoHash(i + vec2(0.0, 1.0)), chorizoHash(i + vec2(1.0, 1.0)), f.x),
-          f.y
-        );
-      }
-    ` + shader.fragmentShader;
-    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
-      // Mapeo suave sin efecto caleidoscopio y recortando la franja negra superior de chorizo-raw-sides-v1.png
+// Muestreo de la tripa: crudo de chorizo-raw-sides (sin la franja negra) y asado del centro dorado.
+const CHORIZO_SAMPLE_GLSL = `
       vec2 repeatUv = vMapUv * vec2(1.15, 1.0);
       vec2 seamlessUv = 1.0 - abs(fract(repeatUv) * 2.0 - 1.0);
-
-      // En chorizo-raw-sides-v1.png recortamos Y en [0.06, 0.84] para excluir el borde negro superior
-      vec2 rawUv = vec2(
-        mix(0.06, 0.94, seamlessUv.x),
-        mix(0.06, 0.84, seamlessUv.y)
-      );
-      // Tomamos el centro dorado de la mitad derecha de chorizo-raw-cooked-v1.jpg evitando bordes pálidos
-      vec2 cookedUv = vec2(
-        mix(0.54, 0.92, seamlessUv.x),
-        mix(0.18, 0.86, seamlessUv.y)
-      );
-
-      vec4 texRaw = texture2D(map, rawUv);
-      // Realzamos el tono rosado fresco de carne de cerdo/vacuna y los dados de tocino blanco
-      texRaw.rgb = pow(max(texRaw.rgb, vec3(0.01)), vec3(0.80)) * vec3(1.14, 1.03, 1.02);
-      texRaw.rgb = clamp(texRaw.rgb, 0.0, 1.0);
-
-      float fatSpeck = smoothstep(0.52, 0.82, min(texRaw.r, min(texRaw.g, texRaw.b)));
-      texRaw.rgb = mix(texRaw.rgb, vec3(0.97, 0.92, 0.85), fatSpeck * 0.45);
-
-      vec4 texCooked = texture2D(cookedMap, cookedUv);
-      float grain = chorizoNoise(seamlessUv * vec2(18.0, 14.0)) * 0.65
-        + chorizoNoise(seamlessUv * 38.0) * 0.35;
-
-      // Re-graduamos la textura cocida hacia un dorado ámbar / bronce crocante y parejo ("chorizo bien doradito")
-      vec3 liftedCooked = pow(max(texCooked.rgb, vec3(0.02)), vec3(0.66)) * vec3(1.36, 1.14, 0.78);
-      float cookedLuma = clamp(dot(liftedCooked, vec3(0.33, 0.50, 0.17)), 0.0, 1.0);
-      vec3 goldenCasing = mix(
-        vec3(0.60, 0.33, 0.10),
-        vec3(0.92, 0.62, 0.22),
-        smoothstep(0.14, 0.86, cookedLuma * 0.72 + grain * 0.28)
-      );
-      vec3 goldenCooked = mix(liftedCooked, goldenCasing, 0.68);
-      // Los dados de tocino bajo la tripa se vuelven dorado miel brillante al asarse
-      vec3 goldenFatSpeck = mix(vec3(0.88, 0.62, 0.24), vec3(0.97, 0.78, 0.38), grain);
-      goldenCooked = mix(goldenCooked, goldenFatSpeck, fatSpeck * 0.65);
-
-      // Mezcla suave entre cara A (inferior inicial) y cara B (superior inicial)
-      float sideBlend = smoothstep(-0.28, 0.28, sin(vMapUv.y * 6.2831853));
-      float localCook = clamp(mix(meatCookA, meatCookB, sideBlend), 0.0, 1.0);
-      float localBurn = clamp(mix(meatBurnA, meatBurnB, sideBlend), 0.0, 1.0);
-
-      // Etapa intermedia: de rosado crudo -> dorado manteca / ámbar suave -> dorado parrillero intenso
-      float cookT = smoothstep(0.0, 1.0, localCook);
-      vec3 warmMid = mix(
-        texRaw.rgb,
-        mix(vec3(0.86, 0.60, 0.32), vec3(0.95, 0.78, 0.44), fatSpeck),
-        smoothstep(0.0, 0.55, cookT) * 0.78
-      );
-      vec3 finalRgb = mix(warmMid, goldenCooked, smoothstep(0.22, 1.0, cookT));
-
-      // Sutiles marcas caramelizadas de los hierros de la parrilla a lo largo del chorizo
-      float grillWave = abs(sin((vMapUv.x * 5.5 + (grain - 0.5) * 0.08) * 3.14159265));
-      float grillMark = (1.0 - smoothstep(0.0, 0.16, grillWave)) * smoothstep(0.28, 0.90, cookT);
-      finalRgb = mix(finalRgb, vec3(0.46, 0.23, 0.07), grillMark * 0.24);
-
-      float charFactor = smoothstep(0.32, 0.95, localBurn + (grain - 0.5) * 0.30 * localBurn);
-      finalRgb = mix(finalRgb, vec3(0.022, 0.014, 0.010), charFactor);
-
-      diffuseColor.rgb *= finalRgb;
-    `);
-  };
-  material.customProgramCacheKey = () => 'chorizo-casing-golden-v4';
-
-  return {
-    material,
-    update(meat) {
-      if(!meat.hasReceivedGrillHeat && meat.totalSimSeconds === 0 && meat.brown.a === 0 && meat.brown.b === 0) {
-        sideHeat.a = 0;
-        sideHeat.b = 0;
-        lastSimSeconds = 0;
-      } else if(meat.totalSimSeconds > lastSimSeconds) {
-        const dt = Math.min(5, meat.totalSimSeconds - lastSimSeconds);
-        lastSimSeconds = meat.totalSimSeconds;
-        if(meat.onGrill) {
-          const down = meat.faceDown;
-          const up = down === 'a' ? 'b' : 'a';
-          const surfDown = Math.max(meat.surfaceC[down], meat.layersC[0]);
-          const rateDown = Math.max(0, (surfDown - 42) / 85);
-          sideHeat[down] = Math.min(1, sideHeat[down] + dt * rateDown * 0.012);
-          sideHeat[up] = Math.min(1, sideHeat[up] + dt * rateDown * 0.0028);
-        }
-      }
-
-      const thermalBase = THREE.MathUtils.clamp((meat.layersC[0] - 26) / 46, 0, 1);
-      const brownA = THREE.MathUtils.clamp(meat.brown.a / 36, 0, 1);
-      const brownB = THREE.MathUtils.clamp(meat.brown.b / 36, 0, 1);
-
-      cookA.value = THREE.MathUtils.clamp(
-        Math.max(brownA, sideHeat.a, thermalBase * (meat.faceDown === 'a' ? 0.68 : 0.42) + brownA * 0.45),
-        0,
-        1
-      );
-      cookB.value = THREE.MathUtils.clamp(
-        Math.max(brownB, sideHeat.b, thermalBase * (meat.faceDown === 'b' ? 0.68 : 0.42) + brownB * 0.45),
-        0,
-        1
-      );
-      burnA.value = THREE.MathUtils.clamp(Math.max(meat.burn.a, meat.casingDamage.a * 0.85) / 100, 0, 1);
-      burnB.value = THREE.MathUtils.clamp(Math.max(meat.burn.b, meat.casingDamage.b * 0.85) / 100, 0, 1);
-      const avgCook = (cookA.value + cookB.value) * 0.5;
-      const maxBurn = Math.max(burnA.value, burnB.value);
-      material.roughness = 0.36 - avgCook * 0.08 + maxBurn * 0.44;
-      material.clearcoat = (0.30 + avgCook * 0.10) * (1 - maxBurn * 0.82);
-    }
-  };
-}
+      vec3 rawRgb = texture2D(map, vec2(mix(0.06, 0.94, seamlessUv.x), mix(0.06, 0.84, seamlessUv.y))).rgb;
+      rawRgb = clamp(pow(max(rawRgb, vec3(0.001)), vec3(0.92)) * vec3(1.08, 1.0, 1.0), 0.0, 1.0);
+      float fatSpeck = smoothstep(0.40, 0.70, min(rawRgb.r, min(rawRgb.g, rawRgb.b)));
+      vec3 cookedRgb = texture2D(chorizoCookedMap, vec2(mix(0.54, 0.92, seamlessUv.x), mix(0.18, 0.86, seamlessUv.y))).rgb;
+`;
 
 export function createChorizoVisual(meat: MeatModel, scaleX: number, _scaleZ: number): MeatVisual {
   const d = MEAT_CATALOG[meat.definition.kind], size = meat.portion ? meatDimensions(d) : meat.dimensions;
@@ -319,7 +176,14 @@ export function createChorizoVisual(meat: MeatModel, scaleX: number, _scaleZ: nu
   projection.scale.set(scaleX, 3, _scaleZ);
   group.add(projection); projection.add(orientation); orientation.add(body);
 
-  const casing = createCasingMaterial();
+  const textures = textureSet();
+  const casing = createSausageCasing(textures.rawMap, textures.bump, { chorizoCookedMap: { value: textures.cookedMap } }, {
+    name: 'chorizo-casing', cacheKey: 'chorizo-casing-v5', lengthM: size.widthM, thicknessM: d.thicknessM,
+    sampleGlsl: CHORIZO_SAMPLE_GLSL, ramp: 'mtChorizoRamp', fillingRaw: 0xc8705f, fillingCooked: 0x9c4f36,
+    roughness: 0.40, cookedRoughness: 0.30, clearcoat: 0.30, cookedGloss: 0.7, photoDetail: 0.22,
+    heat: { surfaceStartC: 42, surfaceRangeC: 85, downRate: 0.012, upRate: 0.0028,
+      thermalStartC: 26, thermalRangeC: 46, brownFull: 36, downWeight: 0.68, upWeight: 0.42 },
+  });
   const fatMat = new THREE.MeshStandardMaterial({ color: 0xe4d6ac, roughness: 0.65 });
 
   const pickMeshes: THREE.Mesh[] = [];
@@ -357,7 +221,7 @@ export function createChorizoVisual(meat: MeatModel, scaleX: number, _scaleZ: nu
       const thermalRatio = THREE.MathUtils.clamp((meat.layersC[0] - 26) / 48, 0, 1);
       const cookRatio = Math.min(1, Math.max(((meat.brown.a + meat.brown.b) / 2) / 38, thermalRatio * 0.72));
       const burnRatio = Math.min(1, Math.max(meat.burn.a, meat.burn.b, meat.casingDamage.a, meat.casingDamage.b) / 100);
-      fatMat.color.set(0xeadcc0).lerp(new THREE.Color(0xc48b3c), cookRatio).lerp(new THREE.Color(0x2a1d14), burnRatio);
+      fatMat.color.set(0xeadcc0).lerp(TWINE_COOKED, cookRatio).lerp(TWINE_BURNT, burnRatio);
 
       group.scale.setScalar(meat.location === 'carried' ? 0.65 : 1);
       for(const part of pickMeshes) part.userData.enabled = meat.location !== 'carried';

@@ -29,7 +29,7 @@ export function createMeatSurfaceGeometry(meat: MeatModel, profile: SurfaceProfi
       return [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]];
     });
   }
-  const vertices: number[] = [], uvs: number[] = [], indices: number[] = [];
+  const vertices: number[] = [], uvs: number[] = [], indices: number[] = [], edgeWeights: number[] = [];
   for(const top of [false, true]) for(const p of points) {
     const distance = Math.min(...outline.map((a, i) => {
       const b = outline[(i + 1) % outline.length], ab = b.clone().sub(a);
@@ -44,6 +44,7 @@ export function createMeatSurfaceGeometry(meat: MeatModel, profile: SurfaceProfi
     const y = top ? thickness * (settings.topEdge + (settings.topCenter - settings.topEdge) * edge + ripple * settings.rippleTop * edge)
       : thickness * (settings.bottomCenter + (settings.bottomEdge - settings.bottomCenter) * (1 - edge) + ripple * settings.rippleBottom * edge);
     vertices.push(p.x, y, -p.y);
+    edgeWeights.push(edge); // 0 en el contorno, 1 en el centro: el sombreado oscurece los bordes
     const u = p.x / w + 0.5, v = 0.5 - p.y / d;
     const crop = meat.portion?.uv;
     uvs.push(crop ? THREE.MathUtils.lerp(crop.u0, crop.u1, u) : u,
@@ -79,7 +80,7 @@ export function createMeatSurfaceGeometry(meat: MeatModel, profile: SurfaceProfi
     if (length < 1e-10) continue;
     for (const i of [a,b,b+n,a+n]) {
       const px=vertices[3*i], py=vertices[3*i+1], pz=vertices[3*i+2];
-      vertices.push(px,py,pz);
+      vertices.push(px,py,pz); edgeWeights.push(1);
       uvs.push((px*dx-pz*dz)/length*18,py*30);
     }
     indices.push(start,start+1,start+2,start,start+2,start+3);
@@ -87,6 +88,7 @@ export function createMeatSurfaceGeometry(meat: MeatModel, profile: SurfaceProfi
   if (indices.length > freshStart) geometry.addGroup(freshStart,indices.length-freshStart,3);
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setAttribute('meatEdge', new THREE.Float32BufferAttribute(edgeWeights, 1));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();

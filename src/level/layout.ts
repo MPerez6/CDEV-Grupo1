@@ -9,6 +9,12 @@ export const PREP_TABLE_BOUNDS = {
   x0: PREP_TABLE.x - PREP_TABLE.width / 2, x1: PREP_TABLE.x + PREP_TABLE.width / 2,
   z0: PREP_TABLE.z - PREP_TABLE.depth / 2, z1: PREP_TABLE.z + PREP_TABLE.depth / 2,
 };
+/** Tacho de basura con pedal, entre la mesa de preparación y la heladera. */
+export const TRASH_BIN = { x: 4.64, z: -3.3, radius: 0.21, height: 0.66 } as const;
+export const TRASH_BIN_BOUNDS = {
+  x0: TRASH_BIN.x - TRASH_BIN.radius, x1: TRASH_BIN.x + TRASH_BIN.radius,
+  z0: TRASH_BIN.z - TRASH_BIN.radius, z1: TRASH_BIN.z + TRASH_BIN.radius,
+};
 export const PREP_BOARD = { width: 1.72, depth: 0.94, thickness: 0.045 };
 export function boardPosition(): THREE.Vector3 {
   return new THREE.Vector3(PREP_TABLE.x, PREP_TABLE.top + PREP_BOARD.thickness + 0.002, PREP_TABLE.z + 0.14);

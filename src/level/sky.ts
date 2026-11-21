@@ -478,9 +478,48 @@ export function createSky(scene: THREE.Scene) {
     });
   }
 
+  // 4. Noche: luna y estrellas (aparecen con el ciclo de día y noche).
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(2.2, 18, 14), new THREE.MeshBasicMaterial({ color: 0xe3e9f4, fog: false, transparent: true }));
+  moon.visible = false;
+  skyRoot.add(moon);
+  const starGeo = new THREE.BufferGeometry();
+  const starPos: number[] = [];
+  for(let i = 0;i < 900;i++) {
+    const u = rand(), v = rand() * 0.92 + 0.08, theta = u * Math.PI * 2, r = 126;
+    const y = v * r, ring = Math.sqrt(r * r - y * y);
+    starPos.push(Math.cos(theta) * ring, y, Math.sin(theta) * ring);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xfdfcf5, size: 1.7, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false });
+  const stars = new THREE.Points(starGeo, starMat);
+  stars.visible = false;
+  skyRoot.add(stars);
+  const dayTint = new THREE.Color(1, 1, 1), goldenTint = new THREE.Color(1.0, 0.6, 0.42), nightTint = new THREE.Color(0.05, 0.07, 0.15);
+  const overcastTint = new THREE.Color(0.6, 0.64, 0.68), cloudWhite = new THREE.Color(1, 1, 1), cloudGrey = new THREE.Color(0.5, 0.52, 0.56);
+  const haloDay = new THREE.Color(0xffe9ba), haloGolden = new THREE.Color(0xff9a4a);
+
   let lastTime = 0;
 
   return {
+    /** Tiñe el cielo y ubica sol/luna según la hora y el clima (lo llama day-night.ts). */
+    applyDaylight(state: { sunDir: THREE.Vector3; golden: number; night: number; clouds: number; rain: number }): void {
+      skyDomeMat.color.copy(dayTint).lerp(goldenTint, state.golden * 0.85).lerp(nightTint, state.night)
+        .lerp(overcastTint.clone().multiplyScalar((1 - state.night * 0.85) * (1 - state.rain * 0.25)), Math.min(1, state.clouds * 0.95) * (1 - state.night * 0.5));
+      const up = state.sunDir.y > -0.05;
+      sunDisc.visible = sunHalo.visible = up && state.clouds < 0.6;
+      sunDisc.position.copy(state.sunDir).multiplyScalar(118);
+      sunHalo.position.copy(sunDisc.position);
+      (sunHalo.material as THREE.SpriteMaterial).color.copy(haloDay).lerp(haloGolden, state.golden);
+      (sunHalo.material as THREE.SpriteMaterial).opacity = 1 - state.clouds * 0.8;
+      (sunDisc.material as THREE.MeshBasicMaterial).color.setHex(state.golden > 0.4 ? 0xffd9a0 : 0xfffdf2);
+      moon.visible = state.night > 0.05;
+      moon.position.set(-state.sunDir.x, Math.abs(state.sunDir.y) * 0.8 + 0.35, -state.sunDir.z).normalize().multiplyScalar(116);
+      (moon.material as THREE.MeshBasicMaterial).opacity = state.night * (1 - state.clouds * 0.85);
+      starMat.opacity = state.night * (1 - state.clouds) * 0.95;
+      stars.visible = starMat.opacity > 0.02;
+      cloudMat.color.copy(cloudWhite).lerp(cloudGrey, Math.min(1, state.clouds * 0.8 + state.rain * 0.3));
+      for(const bird of birds) bird.root.visible = state.night < 0.3 && state.rain < 0.3;
+    },
     update(elapsedReal: number): void {
       const dt = lastTime > 0 ? Math.min(0.1, Math.max(0, elapsedReal - lastTime)) : 0.016;
       lastTime = elapsedReal;

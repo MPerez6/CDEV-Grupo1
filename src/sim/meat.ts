@@ -27,7 +27,9 @@ export class MeatModel {
   public readonly casingDamage: Record<Side, number> = { a: 0, b: 0 };
   public juiciness = 100;
   public faceDown: Side = 'a';
-  public location: MeatStorage | 'carried' | 'grill' | 'served' = 'board';
+  public location: MeatStorage | 'carried' | 'grill' | 'served' | 'dog' = 'board';
+  /** La tuvo el perro en la boca: nadie la quiere servida. */
+  public tainted = false;
   public readonly seasonings: Seasoning[] = [];
   public readonly grains: SeasoningGrain[] = [];
   public servedSeat: number | null = null;
@@ -77,6 +79,7 @@ export class MeatModel {
     this.quarterTurns = 0;
     this.totalSimSeconds = 0;
     this.hasReceivedGrillHeat = false;
+    this.tainted = false;
   }
   /** Flujo incidente en W/m². Los rangos recomendados nunca recortan el calor. */
   update(dt: number, incomingFluxWm2: number): void {

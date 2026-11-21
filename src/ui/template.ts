@@ -107,6 +107,16 @@ export const HUD_TEMPLATE = `
         <button class="ghost" id="to-start">🏠 Volver al menú principal</button>
       </nav>
     </section>
+    <section id="shift-summary" class="menu side">
+      <div class="brand-badge">CIERRE DE LA JORNADA</div>
+      <h2>🌙 La parrilla cerró</h2>
+      <p class="muted" id="summary-sub">Se fue el último comensal.</p>
+      <div id="summary-stats" class="summary-stats"></div>
+      <nav>
+        <button id="again" class="primary">🔁 Otra jornada</button>
+        <button class="ghost" id="summary-to-start">🏠 Volver al menú principal</button>
+      </nav>
+    </section>
     <section id="help" class="sheet" hidden>
       <header class="sheet-head"><h3>📖 Guía del Parrillero</h3><button class="icon-close" data-close>✕</button></header>
       ${helpHtml}

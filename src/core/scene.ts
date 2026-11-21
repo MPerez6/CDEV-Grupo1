@@ -6,6 +6,13 @@ import { ASADOR_LAYOUT } from '../level/asador.ts';
 import { createPatioLighting } from '../lighting/lighting.ts';
 import { createBrazier } from '../effects/brazier-effects.ts';
 import { createGrillEmbers } from '../effects/grill-embers.ts';
+import { createMeatSmoke } from '../effects/meat-smoke.ts';
+import { createTrashBin } from '../level/trash-bin.ts';
+import { TRASH_BIN } from '../level/layout.ts';
+import { createAsadorLight } from '../level/asador-light.ts';
+import { createDayNight } from '../lighting/day-night.ts';
+import { createRain } from '../effects/rain.ts';
+import type { DayCycle } from '../sim/daytime.ts';
 import { createMeatViews } from '../art/meat-views.ts';
 import { createToolViews } from '../art/tool-views.ts';
 import { createClientViews } from '../ai/clients.ts';
@@ -30,7 +37,7 @@ export function createScene() {
   camera.rotation.z = 0;
   scene.add(camera);
   const clickable: THREE.Object3D[] = [];
-  createPatioLighting(scene);
+  const patioLights = createPatioLighting(scene);
   const sky = createSky(scene);
   createPatio(scene, clickable);
   const preparation = createPrepTable(scene, clickable);
@@ -40,6 +47,13 @@ export function createScene() {
   const embers = createGrillEmbers(grill.coalMeshes);
   const tools = createToolViews(camera);
   const meats = createMeatViews(scene, camera, clickable, tools.carriedMeatAnchor);
+  const meatSmoke = createMeatSmoke(scene, meats.views);
+  const trashBin = createTrashBin(scene, clickable);
+  const asadorLight = createAsadorLight(scene, clickable);
+  const rain = createRain(scene);
+  // Se arma después de todo el escenario para encontrar los faroles.
+  let dayNight: ReturnType<typeof createDayNight> | null = null;
+  let previousElapsed: number | null = null;
   const restaurante = createRestaurante(scene, clickable);
   restaurante.setActive(false);
   const clientViews = createClientViews(scene, clickable);
@@ -51,6 +65,13 @@ export function createScene() {
     camera,
     clickable,
     triggerToolAction: tools.triggerAction,
+    meatViews: meats.views,
+    /** Hora y clima: sol, cielo, faroles y lluvia. */
+    updateDay(day: DayCycle): void {
+      dayNight ??= createDayNight(scene, patioLights.sun, patioLights.ambient, sky);
+      dayNight.update(day);
+      rain.update(day.rain, camera.position);
+    },
     updateVisuals(world: SimulationWorld, elapsedReal: number, activeTool = 0, prepTool: PreparationTool | null = null,
       aim: InteractionTarget | null = null, stroke: CutStroke | null = null): void {
       const isRestaurant = world.clients.enabled;
@@ -64,12 +85,19 @@ export function createScene() {
       if(doorPivot) {
         doorPivot.rotation.y = world.clients.doorOpenRatio * 1.45;
       }
+      const dt = previousElapsed === null ? 0 : Math.min(0.1, Math.max(0, elapsedReal - previousElapsed));
+      previousElapsed = elapsedReal;
       sky.update(elapsedReal);
+      asadorLight.update(world.asadorLight, elapsedReal, dt);
+      rain.animate(dt);
       fridge.update(world.fridgeOpen, elapsedReal);
       brazier.updateVisuals(world, elapsedReal);
       embers.update(world, elapsedReal);
       tools.update(world, activeTool, elapsedReal);
       meats.update(world, elapsedReal);
+      meatSmoke.update(world, elapsedReal);
+      const nearBin = Math.hypot(camera.position.x - TRASH_BIN.x, camera.position.z - TRASH_BIN.z) < 2.2;
+      trashBin.update(world.trash, nearBin && world.carriedMeatId !== null, elapsedReal);
       preparation.update(camera, prepTool, aim, stroke, elapsedReal);
       clientViews.update(world.clients, elapsedReal);
     }

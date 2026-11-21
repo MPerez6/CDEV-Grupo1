@@ -19,7 +19,9 @@ export function targetName(kind: TargetKind, index?: number): string {
     'seasoning': `🧂 ${seasoning ? SEASONING_LABELS[seasoning] : 'Condimento'} · [E] Seleccionar`,
     'prep-knife': '🔪 Cuchillo del asador · [E] Elegir la línea de corte',
     'radio': '📻 Radio portátil · [E] Prender / cambiar estación / apagar',
-    'dog': `🐕 ${DOG_NAME} · [E] Acariciar`,
+    'dog': `🐕 ${DOG_NAME} · [E] Acariciar · [3 + Clic] Darle lo que tenés en la pinza`,
+    'light-switch': '💡 Llave de luz del asador · [E] Prender / apagar',
+    'trash': '🗑️ Tacho de basura · [3 + Clic] Tirar lo de la pinza · [E] Sacar la bolsa',
     'plate': `🍽️ Plato (Lugar ${(index ?? 0) + 1}) · [3 + Clic / E] Servir corte al comensal`,
     'client': '🧑 Comensal · [E] Consultar pedido · [3 + Clic / E] Entregar corte',
   };

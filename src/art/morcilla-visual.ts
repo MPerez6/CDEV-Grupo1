@@ -4,6 +4,7 @@ import { clipFoodDetails } from './portion-mesh.ts';
 import { cutSurface } from './cut-surface.ts';
 import type { MeatModel } from '../sim/meat.ts';
 import type { MeatVisual } from './meat-visual.ts';
+import { createSausageCasing } from './sausage-casing.ts';
 
 let atlas: THREE.Texture | undefined;
 let bumpAtlas: THREE.Texture | undefined;
@@ -136,153 +137,20 @@ function createMorcillaCapsuleGeometry(widthM: number, thicknessM: number, scale
   return geometry;
 }
 
-function createCasingMaterial(): { material: THREE.MeshPhysicalMaterial; update: (meat: MeatModel) => void; } {
-  const textures = textureSet();
-  const material = new THREE.MeshPhysicalMaterial({
-    name: 'morcilla-casing',
-    map: textures.map,
-    bumpMap: textures.bump,
-    bumpScale: 0.0005,
-    color: 0xffffff,
-    metalness: 0,
-    roughness: 0.36,
-    clearcoat: 0.32,
-    clearcoatRoughness: 0.24,
-    ior: 1.45,
-    side: THREE.DoubleSide,
-  });
-
-  const cookA = { value: 0 }, cookB = { value: 0 };
-  const burnA = { value: 0 }, burnB = { value: 0 };
-  const sideHeat = { a: 0, b: 0 };
-  let lastSimSeconds = 0;
-
-  material.onBeforeCompile = shader => {
-    shader.uniforms.meatCookA = cookA;
-    shader.uniforms.meatCookB = cookB;
-    shader.uniforms.meatBurnA = burnA;
-    shader.uniforms.meatBurnB = burnB;
-    shader.fragmentShader = `
-      uniform float meatCookA;
-      uniform float meatCookB;
-      uniform float meatBurnA;
-      uniform float meatBurnB;
-      float morcillaHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float morcillaNoise(vec2 p) {
-        vec2 i = floor(p), f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        return mix(
-          mix(morcillaHash(i), morcillaHash(i + vec2(1.0, 0.0)), f.x),
-          mix(morcillaHash(i + vec2(0.0, 1.0)), morcillaHash(i + vec2(1.0, 1.0)), f.x),
-          f.y
-        );
-      }
-    ` + shader.fragmentShader;
-    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
-      // Mapeo continuo en espejo (triangle wave) para eliminar costuras y evitar cruzar la línea central del atlas
+// Muestreo en espejo del atlas: mitad izquierda fresca, mitad derecha asada.
+const MORCILLA_SAMPLE_GLSL = `
       vec2 repeatUv = vMapUv * vec2(1.6, 1.0);
-      vec2 seamlessUv = 1.0 - abs(fract(repeatUv) * 2.0 - 1.0);
-      seamlessUv = clamp(seamlessUv, vec2(0.03, 0.04), vec2(0.92, 0.96));
+      vec2 seamlessUv = clamp(1.0 - abs(fract(repeatUv) * 2.0 - 1.0), vec2(0.03, 0.04), vec2(0.92, 0.96));
+      vec3 rawRgb = texture2D(map, vec2(seamlessUv.x * 0.45 + 0.015, seamlessUv.y)).rgb;
+      vec3 cookedRgb = texture2D(map, vec2(seamlessUv.x * 0.45 + 0.525, seamlessUv.y)).rgb;
+      // Bordó criollo en frío con dados de tocino bajo la tripa
+      rawRgb = pow(max(rawRgb, vec3(0.001)), vec3(0.95)) * vec3(1.12, 0.95, 1.02);
+      float fatSpeck = smoothstep(0.18, 0.45, min(rawRgb.r, min(rawRgb.g, rawRgb.b)));
+      rawRgb = mix(rawRgb, vec3(0.80, 0.72, 0.64), fatSpeck * 0.4);
+`;
 
-      // Mitad izquierda del atlas = morcilla fresca/precocida; mitad derecha = morcilla asada
-      vec2 rawUv = vec2(seamlessUv.x * 0.45 + 0.015, seamlessUv.y);
-      vec2 cookedUv = vec2(seamlessUv.x * 0.45 + 0.525, seamlessUv.y);
-
-      vec4 texRaw = texture2D(map, rawUv);
-      vec4 texCooked = texture2D(map, cookedUv);
-
-      // Realzamos el tono bordó-morado criollo en frío y los dados de tocino blanco bajo la tripa
-      vec3 rawRgb = pow(max(texRaw.rgb, vec3(0.01)), vec3(0.84)) * vec3(1.18, 0.95, 1.02);
-      float fatCube = smoothstep(0.26, 0.58, min(rawRgb.r, min(rawRgb.g, rawRgb.b)));
-      rawRgb = mix(rawRgb, vec3(0.93, 0.87, 0.80), fatCube * 0.50);
-
-      // Transformamos el estado cocido hacia una tripa bronceada y doradita (caramelo/ámbar tostado en relieves y grasa)
-      float grain = morcillaNoise(seamlessUv * vec2(20.0, 15.0)) * 0.65
-        + morcillaNoise(seamlessUv * 42.0) * 0.35;
-      vec3 liftedCooked = pow(max(texCooked.rgb, vec3(0.015)), vec3(0.56)) * vec3(1.48, 1.16, 0.78);
-      float ridgeDetail = clamp(dot(liftedCooked, vec3(0.40, 0.45, 0.15)) * 0.80 + grain * 0.35, 0.0, 1.0);
-
-      vec3 goldenBronzeCasing = mix(
-        vec3(0.30, 0.16, 0.08),
-        vec3(0.78, 0.49, 0.19),
-        smoothstep(0.14, 0.82, ridgeDetail)
-      );
-      vec3 goldenCooked = mix(liftedCooked, goldenBronzeCasing, 0.72);
-      // Los dados de grasa subcutáneos se doran a un tono ámbar miel cálido
-      vec3 toastedFatCube = mix(vec3(0.82, 0.54, 0.20), vec3(0.92, 0.68, 0.30), grain);
-      goldenCooked = mix(goldenCooked, toastedFatCube, fatCube * 0.76);
-
-      // Mezcla suave entre cara A y cara B alrededor del cilindro
-      float sideBlend = smoothstep(-0.28, 0.28, sin(vMapUv.y * 6.2831853));
-      float localCook = clamp(mix(meatCookA, meatCookB, sideBlend), 0.0, 1.0);
-      float localBurn = clamp(mix(meatBurnA, meatBurnB, sideBlend), 0.0, 1.0);
-
-      // Transición progresiva: de bordó-morado -> bronce cálido -> doradito crocante
-      float cookT = smoothstep(0.0, 1.0, localCook);
-      vec3 warmBronzeMid = mix(
-        rawRgb,
-        mix(vec3(0.46, 0.26, 0.13), vec3(0.86, 0.62, 0.28), fatCube * 0.7 + ridgeDetail * 0.3),
-        smoothstep(0.0, 0.55, cookT) * 0.80
-      );
-      vec3 finalRgb = mix(warmBronzeMid, goldenCooked, smoothstep(0.22, 1.0, cookT));
-
-      // Destellos dorados / caramelizados en las zonas de apoyo sobre la parrilla
-      float grillWave = abs(sin((vMapUv.x * 5.5 + (grain - 0.5) * 0.08) * 3.14159265));
-      float grillMark = (1.0 - smoothstep(0.0, 0.16, grillWave)) * smoothstep(0.25, 0.88, cookT);
-      finalRgb = mix(finalRgb, vec3(0.36, 0.18, 0.06), grillMark * 0.24);
-
-      float charFactor = smoothstep(0.34, 0.95, localBurn + (grain - 0.5) * 0.28 * localBurn);
-      finalRgb = mix(finalRgb, vec3(0.014, 0.010, 0.008), charFactor);
-
-      diffuseColor.rgb *= finalRgb;
-    `);
-  };
-  material.customProgramCacheKey = () => 'morcilla-casing-golden-v3';
-
-  return {
-    material,
-    update(meat) {
-      if(!meat.hasReceivedGrillHeat && meat.totalSimSeconds === 0 && meat.brown.a === 0 && meat.brown.b === 0) {
-        sideHeat.a = 0;
-        sideHeat.b = 0;
-        lastSimSeconds = 0;
-      } else if(meat.totalSimSeconds > lastSimSeconds) {
-        const dt = Math.min(5, meat.totalSimSeconds - lastSimSeconds);
-        lastSimSeconds = meat.totalSimSeconds;
-        if(meat.onGrill) {
-          const down = meat.faceDown;
-          const up = down === 'a' ? 'b' : 'a';
-          const surfDown = Math.max(meat.surfaceC[down], meat.layersC[0]);
-          // La morcilla se cocina a fuego suave (2500-4500 W/m²), por lo que empieza a dorarse desde ~36 °C superficiales
-          const rateDown = Math.max(0, (surfDown - 36) / 68);
-          sideHeat[down] = Math.min(1, sideHeat[down] + dt * rateDown * 0.014);
-          sideHeat[up] = Math.min(1, sideHeat[up] + dt * rateDown * 0.0032);
-        }
-      }
-
-      const thermalBase = THREE.MathUtils.clamp((meat.layersC[0] - 24) / 38, 0, 1);
-      const brownA = THREE.MathUtils.clamp(meat.brown.a / 30, 0, 1);
-      const brownB = THREE.MathUtils.clamp(meat.brown.b / 30, 0, 1);
-
-      cookA.value = THREE.MathUtils.clamp(
-        Math.max(brownA, sideHeat.a, thermalBase * (meat.faceDown === 'a' ? 0.74 : 0.46) + brownA * 0.45),
-        0,
-        1
-      );
-      cookB.value = THREE.MathUtils.clamp(
-        Math.max(brownB, sideHeat.b, thermalBase * (meat.faceDown === 'b' ? 0.74 : 0.46) + brownB * 0.45),
-        0,
-        1
-      );
-      burnA.value = THREE.MathUtils.clamp(Math.max(meat.burn.a, meat.casingDamage.a) / 100, 0, 1);
-      burnB.value = THREE.MathUtils.clamp(Math.max(meat.burn.b, meat.casingDamage.b) / 100, 0, 1);
-      const avgCook = (cookA.value + cookB.value) * 0.5;
-      const maxBurn = Math.max(burnA.value, burnB.value);
-      material.roughness = 0.34 - avgCook * 0.07 + maxBurn * 0.46;
-      material.clearcoat = (0.34 + avgCook * 0.12) * (1 - maxBurn * 0.85);
-    }
-  };
-}
+// Piolín de atar: se tuesta y se ahúma.
+const STRING_COOKED = new THREE.Color(0x8e6c48), STRING_BURNT = new THREE.Color(0x221710);
 
 export function createMorcillaVisual(meat: MeatModel, scaleX: number, scaleZ: number): MeatVisual {
   const d = MEAT_CATALOG[meat.definition.kind], size = meat.portion ? meatDimensions(d) : meat.dimensions;
@@ -292,7 +160,14 @@ export function createMorcillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
   projection.scale.set(scaleX, 3, scaleZ);
   group.add(projection); projection.add(orientation); orientation.add(body);
 
-  const casing = createCasingMaterial();
+  const textures = textureSet();
+  const casing = createSausageCasing(textures.map, textures.bump, {}, {
+    name: 'morcilla-casing', cacheKey: 'morcilla-casing-v4', lengthM: size.widthM, thicknessM: d.thicknessM,
+    sampleGlsl: MORCILLA_SAMPLE_GLSL, ramp: 'mtMorcillaRamp', fillingRaw: 0x3a2226, fillingCooked: 0x4a2622,
+    roughness: 0.36, cookedRoughness: 0.68, clearcoat: 0.32, cookedGloss: -0.5, photoDetail: 0.45,
+    heat: { surfaceStartC: 36, surfaceRangeC: 68, downRate: 0.014, upRate: 0.0032,
+      thermalStartC: 24, thermalRangeC: 38, brownFull: 30, downWeight: 0.74, upWeight: 0.46 },
+  });
   const stringMat = new THREE.MeshStandardMaterial({ color: 0xd8c8a0, roughness: 0.7 });
   const pickMeshes: THREE.Mesh[] = [];
 
@@ -329,7 +204,7 @@ export function createMorcillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
       const thermalRatio = THREE.MathUtils.clamp((meat.layersC[0] - 24) / 40, 0, 1);
       const cookRatio = Math.min(1, Math.max(((meat.brown.a + meat.brown.b) / 2) / 34, thermalRatio * 0.75));
       const burnRatio = Math.min(1, Math.max(meat.burn.a, meat.burn.b, meat.casingDamage.a, meat.casingDamage.b) / 100);
-      stringMat.color.set(0xd8c8a0).lerp(new THREE.Color(0xb8843e), cookRatio).lerp(new THREE.Color(0x221710), burnRatio);
+      stringMat.color.set(0xd8c8a0).lerp(STRING_COOKED, cookRatio).lerp(STRING_BURNT, burnRatio);
 
       group.scale.setScalar(meat.location === 'carried' ? 0.65 : 1);
       for(const part of pickMeshes) part.userData.enabled = meat.location !== 'carried';

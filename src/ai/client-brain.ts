@@ -198,6 +198,22 @@ export function evaluateDelivery(order: ClientOrder, meat: MeatModel, patienceRa
   const centerC = meat.centerC;
   const baseTipForCut = CUT_BASE_TIP[order.kind];
 
+  // 0. Pieza que estuvo en la boca del perro: rechazo inmediato.
+  if(meat.tainted) {
+    return {
+      grade: 'malo',
+      reactionKind: 'enojo-corte',
+      angerGesture: 'rechazo-plato',
+      shortTitle: '🐕 ¡BABEADO!',
+      scoreDelta: -30,
+      tipPesos: 0,
+      cutBonusPts: 0,
+      donenessPts: -30,
+      speedBonusPts: 0,
+      feedback: `¡Este ${servedName} tiene marcas de dientes y baba de perro! ¡Qué asco!`,
+    };
+  }
+
   // 1. Corte quemado / carbonizado: furia inmediata
   if(meat.isBurned) {
     const gestures: readonly AngerGesture[] = ['rechazo-plato', 'manos-cabeza', 'golpe-mesa'];
@@ -426,7 +442,7 @@ export class ClientActor {
 }
 
 export type ClientEvent = {
-  kind: 'arrived' | 'ordered' | 'served' | 'impatient-leave';
+  kind: 'arrived' | 'ordered' | 'served' | 'impatient-leave' | 'smell-leave';
   client: ClientActor;
   message: string;
 };
@@ -442,6 +458,25 @@ const ORDER_POOL: readonly Pick<ClientOrder, 'kind' | 'doneness'>[] = [
   { kind: 'costilla', doneness: 'jugoso' },
 ];
 
+/** Cómo afecta el olor de la basura (0..1) a los comensales. */
+export const SMELL_EFFECT = {
+  /** Desde este olor la paciencia baja más rápido. */
+  impatientFrom: 0.35,
+  /** Con olor 1 la paciencia baja este múltiplo de veces más rápido. */
+  maxPatienceFactor: 3,
+  /** Desde este olor los comensales sentados se empiezan a ir. */
+  leaveAt: 0.8,
+  leaveEverySeconds: 9,
+  leavePenalty: 25,
+} as const;
+
+/** Multiplicador de pérdida de paciencia según el olor. */
+export function smellPatienceFactor(smell: number): number {
+  if(!(smell > SMELL_EFFECT.impatientFrom)) return 1;
+  const t = Math.min(1, (smell - SMELL_EFFECT.impatientFrom) / (1 - SMELL_EFFECT.impatientFrom));
+  return 1 + (SMELL_EFFECT.maxPatienceFactor - 1) * t;
+}
+
 export class ClientManager {
   public enabled = false;
   public readonly clients: ClientActor[] = [];
@@ -455,11 +490,15 @@ export class ClientManager {
   public lastDelivery: LastDeliverySummary | null = null;
   /** Apertura actual de la puerta de entrada (0 = cerrada, 1 = abierta). */
   public doorOpenRatio = 0;
+  /** A la hora de cierre deja de entrar gente; los que están terminan de comer. */
+  public acceptingClients = true;
 
   private nextClientId = 1;
   private orderCursor = 0;
   private spawnTimer = 2.0;
   private maxConcurrent = 4;
+  /** Cuenta regresiva para que el próximo comensal se vaya por el olor de la basura. */
+  private smellLeaveTimer = SMELL_EFFECT.leaveEverySeconds;
 
   /** Rango del parrillero según su puntaje de reputación. */
   get rankTitle(): string {
@@ -482,6 +521,8 @@ export class ClientManager {
     this.nextClientId = 1;
     this.orderCursor = 0;
     this.spawnTimer = 1.5;
+    this.acceptingClients = true;
+    this.smellLeaveTimer = SMELL_EFFECT.leaveEverySeconds;
   }
 
   clientAtSeat(seatIndex: number): ClientActor | undefined {
@@ -493,14 +534,14 @@ export class ClientManager {
   }
 
   /** Avanza el movimiento, la puerta batiente, la paciencia y la llegada de clientes. */
-  update(realDt: number): { events: ClientEvent[]; finishedMeatIds: number[] } {
+  update(realDt: number, trashSmell = 0): { events: ClientEvent[]; finishedMeatIds: number[] } {
     const events: ClientEvent[] = [];
     const finishedMeatIds: number[] = [];
     if(!this.enabled || realDt <= 0) return { events, finishedMeatIds };
 
     // 1. Generar nuevos clientes si hay asientos libres
     this.spawnTimer -= realDt;
-    if(this.spawnTimer <= 0 && this.clients.length < this.maxConcurrent) {
+    if(this.acceptingClients && this.spawnTimer <= 0 && this.clients.length < this.maxConcurrent) {
       const spawned = this.spawnNextClient();
       if(spawned) {
         const seat = CLIENT_SEATS[spawned.seatIndex];
@@ -557,7 +598,7 @@ export class ClientManager {
           c.pos.z += (dz / d) * step;
         }
       } else if(c.state === 'esperando') {
-        c.patienceSeconds = Math.max(0, c.patienceSeconds - realDt);
+        c.patienceSeconds = Math.max(0, c.patienceSeconds - realDt * smellPatienceFactor(trashSmell));
         if(c.patienceSeconds <= 0) {
           c.reactionKind = 'enojo-espera';
           c.reactionTitle = '🤬 ¡SE FUE ENOJADO!';
@@ -602,12 +643,43 @@ export class ClientManager {
       }
     }
 
-    // 3. Animar suavemente la apertura/cierre de la puerta cuando pasa un cliente
+    // 3. Con olor insoportable, cada tanto un comensal sentado se levanta y se va.
+    this.updateSmellLeaving(realDt, trashSmell, events, finishedMeatIds);
+
+    // 4. Animar suavemente la apertura/cierre de la puerta cuando pasa un cliente
     const targetOpen = someoneNearDoor ? 1 : 0;
     const speed = someoneNearDoor ? 4.5 : 2.8;
     this.doorOpenRatio += (targetOpen - this.doorOpenRatio) * Math.min(1, realDt * speed);
 
     return { events, finishedMeatIds };
+  }
+
+  private updateSmellLeaving(realDt: number, smell: number, events: ClientEvent[], finishedMeatIds: number[]): void {
+    if(smell < SMELL_EFFECT.leaveAt) { this.smellLeaveTimer = SMELL_EFFECT.leaveEverySeconds; return; }
+    this.smellLeaveTimer -= realDt;
+    if(this.smellLeaveTimer > 0) return;
+    this.smellLeaveTimer = SMELL_EFFECT.leaveEverySeconds;
+    const c = this.clients.find(x => x.state === 'esperando' || x.state === 'comiendo');
+    if(!c) return;
+    if(c.servedMeatId !== null) { finishedMeatIds.push(c.servedMeatId); c.servedMeatId = null; }
+    c.reactionKind = 'enojo-espera';
+    c.reactionTitle = '🤢 ¡QUÉ OLOR!';
+    c.lastReaction = '¡Qué olor a basura! Así no se puede comer, me voy.';
+    c.lastScoreDelta = -SMELL_EFFECT.leavePenalty;
+    c.lastTipPesos = 0;
+    c.state = 'saliendo';
+    c.route = routeFromSeat(c.seatIndex);
+    this.lostCount++;
+    this.streak = 0;
+    this.score = Math.max(0, this.score - SMELL_EFFECT.leavePenalty);
+    this.lastDelivery = {
+      clientName: c.profile.name, tableNumber: CLIENT_SEATS[c.seatIndex].tableNumber, cutName: MEAT_CATALOG[c.order.kind].name,
+      grade: 'malo', shortTitle: '🤢 Se fue por el olor', scoreDelta: -SMELL_EFFECT.leavePenalty, streakBonusPts: 0, tipPesos: 0, streakBonusTip: 0,
+    };
+    events.push({
+      kind: 'smell-leave', client: c,
+      message: `🤢 ${c.profile.name} se levantó de la Mesa ${CLIENT_SEATS[c.seatIndex].tableNumber}: "¡Qué olor a basura!" (-${SMELL_EFFECT.leavePenalty} pts). Sacá la bolsa.`,
+    });
   }
 
   /** Entrega un corte de carne al cliente sentado en `seatIndex`. */

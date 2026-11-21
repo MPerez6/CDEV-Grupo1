@@ -50,7 +50,13 @@ export function createGameplay(
   onMessage: (message: string) => void = () => { },
   onToolAction: (event: ToolAnimationEvent, detail?: ToolAnimationDetail) => void = () => { },
   /** Ambientación: objetos del patio que responden a E y devuelven el mensaje. Opcional para no afectar las pruebas. */
-  ambient: { toggleRadio?: () => string; petDog?: () => string } = {},
+  ambient: {
+    toggleRadio?: () => string; petDog?: () => string;
+    /** Darle al perro lo que hay en la pinza. */
+    giveDog?: () => string;
+    /** Sacarle al perro lo que tiene en la boca (null si no tiene nada). */
+    takeFromDog?: () => string | null;
+  } = {},
 ) {
   let activeTool = 0;
   let preparationTool: PreparationTool | null = null;
@@ -149,7 +155,22 @@ export function createGameplay(
         notify(ambient.toggleRadio ? ambient.toggleRadio() : 'La radio no tiene pilas.');
         break;
       case 'dog':
+        if(activeTool === 2 && (world.carriedMeatId !== null || ambient.takeFromDog)) {
+          dogWithTongs();
+          break;
+        }
         notify(ambient.petDog ? ambient.petDog() : 'El perro te mira.');
+        break;
+      case 'light-switch':
+        world.toggleAsadorLight();
+        notify(world.message);
+        break;
+      case 'trash':
+        if(activeTool === 2 && world.carriedMeatId !== null) discard();
+        else {
+          world.emptyTrash();
+          notify(world.message);
+        }
         break;
       case 'tray':
       case 'grill-cell':
@@ -160,6 +181,22 @@ export function createGameplay(
       default:
         notify('Para esa acción utilizá la herramienta indicada en pantalla.');
     }
+  }
+  function discard(): void {
+    onToolAction(world.discardCarriedMeat() ? 'tongs-release' : 'tongs-clack');
+    notify(world.message);
+  }
+  /** Con la pinza sobre el perro: si llevás algo se lo das; si él tiene algo, se lo sacás. */
+  function dogWithTongs(): void {
+    if(world.carriedMeatId !== null) {
+      if(!ambient.giveDog) return notify('El perro te mira la pinza.');
+      const message = ambient.giveDog();
+      onToolAction(world.carriedMeatId === null ? 'tongs-release' : 'tongs-clack');
+      return notify(message);
+    }
+    const taken = ambient.takeFromDog?.() ?? null;
+    if(taken) { onToolAction('tongs-grab'); return notify(taken); }
+    notify(ambient.petDog ? ambient.petDog() : 'El perro te mira.');
   }
   function primaryAction(target: InteractionTarget | null): void {
     if(preparationTool) return;
@@ -220,6 +257,8 @@ export function createGameplay(
       if(world.returnMeatToBoard()) onToolAction('tongs-release');
       return notify(world.message);
     }
+    if(kind === 'trash' && activeTool === 2 && world.carriedMeatId !== null) return discard();
+    if(kind === 'dog' && activeTool === 2) return dogWithTongs();
     if((kind === 'plate' || kind === 'client') && activeTool === 2 && world.carriedMeatId !== null) {
       onToolAction(world.serveMeatToSeat(target.index ?? 0) ? 'tongs-release' : 'tongs-clack');
       return notify(world.message);

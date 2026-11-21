@@ -7,6 +7,8 @@ import { footprintCoverage, polygonOverlapArea, meatFootprint } from './meatFoot
 import { ClientManager, type ClientEvent } from '../ai/client-brain.ts';
 import { SEASONING_LABELS, type Seasoning } from './seasoning.ts';
 import { halveMeat } from './meatPortions.ts';
+import { TrashModel, trashUnitsForMass, type SmellLevel } from './trash.ts';
+import { DOG_NAME } from '../ai/dog-brain.ts';
 
 export type PokerStrikeInput = {
   pointM: { x: number; z: number };
@@ -24,6 +26,12 @@ export class SimulationWorld {
   public brazier = new BrazierModel();
   public grill = new HeatGrid();
   public clients = new ClientManager();
+  public trash = new TrashModel();
+  /** Lámpara colgada bajo la campana del asador. */
+  public asadorLight = false;
+  /** Avisos de la simulación (basura) que el HUD muestra una sola vez. */
+  private notices: string[] = [];
+  private lastSmellLevel: SmellLevel = 'sin olor';
   public readonly meats: MeatModel[] = [new MeatModel()];
   public carriedMeatId: number | null = null;
   public fridgeOpen = false;
@@ -55,6 +63,78 @@ export class SimulationWorld {
       consumeEmber(this.carried.fuel.ember, dtSimSeconds);
     this.grill.update(dtSimSeconds);
     for (const meat of this.meats) meat.update(dtSimSeconds, this.meatFluxWm2(meat));
+    this.trash.tick(dtSimSeconds);
+    this.announceSmell();
+  }
+  /** Devuelve y vacía los avisos pendientes. */
+  drainNotices(): string[] { return this.notices.splice(0); }
+  private announceSmell(): void {
+    const order: SmellLevel[] = ['sin olor', 'leve', 'fuerte', 'insoportable'];
+    const level = this.trash.level;
+    if (level === this.lastSmellLevel) return;
+    const rising = order.indexOf(level) > order.indexOf(this.lastSmellLevel);
+    this.lastSmellLevel = level;
+    if (!rising) return;
+    if (level === 'leve') this.notices.push('🗑️ La basura empieza a oler. Cuando puedas, sacá la bolsa (E en el tacho).');
+    if (level === 'fuerte') this.notices.push('🪰 La basura ya larga olor y hay moscas: sacá la bolsa (E en el tacho) antes de que se quejen los comensales.');
+    if (level === 'insoportable') this.notices.push('🤢 ¡El olor de la basura es insoportable! Los comensales se van a ir: sacá la bolsa YA.');
+  }
+  /** Saca la pieza del juego (comida, tirada o servida) y repone la de la tabla si corresponde. */
+  private removeMeat(meat: MeatModel): void {
+    this.coverageCache.delete(meat.id);
+    if (this.carriedMeatId === meat.id) this.carriedMeatId = null;
+    if (this.freshMeatLocation === 'fridge' || meat.portion) this.meats.splice(this.meats.indexOf(meat), 1);
+    else meat.resetFresh('board');
+  }
+  /** Tira al tacho la pieza que está en la pinza. */
+  discardCarriedMeat(): boolean {
+    const meat = this.carriedMeatId === null ? undefined : this.meatById(this.carriedMeatId);
+    if (!meat) {
+      this.message = this.trash.fill > 0
+        ? `Tacho: ${Math.round(this.trash.fillRatio * 100)} % lleno, olor ${this.trash.level}. E con la pinza vacía saca la bolsa.`
+        : 'El tacho está vacío. Llevá con la pinza (3) lo que quieras tirar.';
+      return false;
+    }
+    if (!this.trash.add(trashUnitsForMass(meat.definition.massKg))) {
+      this.message = 'El tacho está lleno. Sacá la bolsa (E sin nada en la pinza) antes de tirar algo más.';
+      return false;
+    }
+    this.removeMeat(meat);
+    this.message = `Tiraste ${meat.displayName} a la basura (tacho ${Math.round(this.trash.fillRatio * 100)} % lleno).`;
+    return true;
+  }
+  toggleAsadorLight(): void {
+    this.asadorLight = !this.asadorLight;
+    this.message = this.asadorLight ? '💡 Prendiste la luz del asador.' : 'Apagaste la luz del asador.';
+  }
+  /** Ata la bolsa y la saca a la vereda. */
+  emptyTrash(): boolean {
+    if (!this.trash.empty()) { this.message = 'El tacho ya está vacío.'; return false; }
+    this.lastSmellLevel = this.trash.level;
+    this.message = 'Ataste la bolsa y la sacaste a la vereda. Bolsa nueva puesta: el olor se va a ir ventilando.';
+    return true;
+  }
+  /** El perro agarra con la boca una pieza que quedó sola en la tabla. */
+  dogStealFromBoard(id: number): MeatModel | null {
+    const meat = this.meatById(id);
+    if (!meat || meat.location !== 'board') return null;
+    meat.location = 'dog';
+    meat.tainted = true;
+    return meat;
+  }
+  /** Le das al perro la pieza que llevás en la pinza. */
+  giveCarriedMeatToDog(): MeatModel | null {
+    const meat = this.carriedMeatId === null ? undefined : this.meatById(this.carriedMeatId);
+    if (!meat) { this.message = `Llevá algo en la pinza (3) para darle a ${DOG_NAME}.`; return null; }
+    meat.location = 'dog';
+    meat.tainted = true;
+    this.carriedMeatId = null;
+    return meat;
+  }
+  /** El perro terminó de comerse la pieza. */
+  dogFinishedEating(id: number): void {
+    const meat = this.meatById(id);
+    if (meat?.location === 'dog') this.removeMeat(meat);
   }
   addMeat(kind: MeatKind): MeatModel {
     const meat = new MeatModel(kind);
@@ -76,6 +156,12 @@ export class SimulationWorld {
   takeMeat(id: number): boolean {
     const meat = this.meatById(id);
     if (!meat || meat.location === 'served' || this.carriedMeatId !== null) { this.message = 'La pinza ya tiene una pieza o no hay carne disponible.'; return false; }
+    if (meat.location === 'dog') {
+      meat.location = 'carried';
+      this.carriedMeatId = id;
+      this.message = `Le sacaste ${meat.displayName} a ${DOG_NAME} de la boca. Está babeado: tiralo al tacho de basura.`;
+      return true;
+    }
     if (meat.location === 'fridge' && !this.fridgeOpen) { this.message = 'Abrí la heladera con E para sacar el corte.'; return false; }
     const fromFridge = meat.location === 'fridge';
     meat.location = 'carried';
@@ -172,7 +258,7 @@ export class SimulationWorld {
     return true;
   }
   updateClients(realDt: number): ClientEvent[] {
-    const { events, finishedMeatIds } = this.clients.update(realDt);
+    const { events, finishedMeatIds } = this.clients.update(realDt, this.trash.smell);
     for (const meatId of finishedMeatIds) {
       const m = this.meatById(meatId);
       if (m) this.finishServing(m);
@@ -184,9 +270,12 @@ export class SimulationWorld {
     for (const meat of [...this.meats]) if (meat.location === 'served') this.finishServing(meat);
   }
   private finishServing(meat: MeatModel): void {
-    this.coverageCache.delete(meat.id);
-    if (this.freshMeatLocation === 'fridge' || meat.portion) this.meats.splice(this.meats.indexOf(meat), 1);
-    else meat.resetFresh('board');
+    // Los restos del plato (huesos, grasa, servilletas) van al tacho.
+    if (this.clients.enabled && !this.trash.add(1)) {
+      this.trash.overflow();
+      this.notices.push('🗑️ El tacho está lleno y los restos quedaron al lado: sacá la bolsa (E en el tacho).');
+    }
+    this.removeMeat(meat);
   }
   flipMeat(id: number): boolean {
     const meat = this.meatById(id);

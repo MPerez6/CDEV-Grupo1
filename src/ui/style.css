@@ -420,6 +420,18 @@ body:not(.playing) #message { display: none; }
 }
 #overlay[data-view="start"] #pause-menu,
 #overlay[data-view="pause"] #start-menu { display: none; }
+#overlay[data-view="summary"] {
+  background: radial-gradient(circle at 75% 40%, rgba(20, 16, 13, 0.1), rgba(14, 11, 9, 0.88) 70%);
+  backdrop-filter: blur(2px);
+}
+#overlay[data-view="summary"] #start-menu,
+#overlay[data-view="summary"] #pause-menu,
+#overlay:not([data-view="summary"]) #shift-summary { display: none; }
+.summary-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.summary-stats div { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; }
+.summary-stats span { display: block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.7; }
+.summary-stats b { font-size: 19px; }
+.summary-stats .wide { grid-column: 1 / -1; text-align: center; }
 
 .menu {
   position: absolute;

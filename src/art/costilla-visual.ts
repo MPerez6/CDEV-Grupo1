@@ -4,6 +4,11 @@ import { clipFoodDetails } from './portion-mesh.ts';
 import type { MeatModel, Side } from '../sim/meat.ts';
 import type { MeatVisual } from './meat-visual.ts';
 import { createMeatSurfaceGeometry } from './meat-surface-geometry.ts';
+import { createCostillaBoneMaterials } from './costilla-bone.ts';
+import {
+  GrillMarkTracker, MEAT_ROUGHNESS_GLSL, cookWithDepth, createMeatUniforms, flatFinishGlsl, injectMeatCommon,
+  updateFaceMarks, withMeatEnvironment, type MeatShadingUniforms,
+} from './meat-shading.ts';
 
 let sharedAtlas: THREE.Texture | undefined;
 let sharedBump: THREE.Texture | undefined;
@@ -42,10 +47,11 @@ function textureSet(): { atlas: THREE.Texture; bump: THREE.Texture } {
 
 function surfaceMaterial(side: Side, thickness: number, edge = false): {
   material: THREE.MeshPhysicalMaterial;
+  uniforms: MeatShadingUniforms;
   update: (meat: MeatModel) => void;
 } {
   const { atlas, bump } = textureSet();
-  const material = new THREE.MeshPhysicalMaterial({
+  const material = withMeatEnvironment(new THREE.MeshPhysicalMaterial({
     name: edge ? 'costilla-edge' : `costilla-face-${side}`,
     map: atlas,
     bumpMap: bump,
@@ -57,8 +63,9 @@ function surfaceMaterial(side: Side, thickness: number, edge = false): {
     clearcoatRoughness: 0.32,
     ior: 1.42,
     side: THREE.DoubleSide,
-  });
+  }));
 
+  const uniforms = createMeatUniforms();
   const cook = { value: 0 };
   const burn = { value: 0 };
   const set = { value: 0 };
@@ -76,112 +83,53 @@ function surfaceMaterial(side: Side, thickness: number, edge = false): {
       costillaHeight = clamp(position.y / ${Math.max(0.005, thickness).toFixed(6)}, 0.0, 1.0);
     `);
 
+    injectMeatCommon(shader, uniforms, true);
     shader.fragmentShader = `
       uniform float costillaCook;
       uniform float costillaBurn;
       uniform float costillaSet;
       varying float costillaHeight;
-      float costillaHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float costillaNoise(vec2 p) {
-        vec2 i = floor(p), f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        return mix(
-          mix(costillaHash(i), costillaHash(i + vec2(1.0, 0.0)), f.x),
-          mix(costillaHash(i + vec2(0.0, 1.0)), costillaHash(i + vec2(1.0, 1.0)), f.x),
-          f.y
-        );
-      }
     ` + shader.fragmentShader;
 
     shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
       vec2 baseUv = clamp(vMapUv, vec2(0.008), vec2(0.992));
-      // Mapeamos la franja [0.10, 0.65] del atlas para mostrar carne intercostal y veteado de grasa sin los huesos 2D superiores
+      // Franja [0.10, 0.65] del atlas: carne intercostal y veteado, sin los huesos dibujados arriba
       float sampleY = ${edge
         ? 'clamp(0.12 + costillaHeight * 0.52, 0.10, 0.65)'
         : 'mix(0.10, 0.65, baseUv.y)'};
+      // Mitad izquierda = costilla cruda; mitad derecha = costilla asada
+      vec3 rawCol = texture2D(map, vec2(baseUv.x * 0.484 + 0.006, sampleY)).rgb;
+      vec3 cookedCol = texture2D(map, vec2(baseUv.x * 0.484 + 0.506, sampleY)).rgb;
+      rawCol = clamp(pow(max(rawCol, vec3(0.001)), vec3(0.92)) * vec3(1.14, 0.97, 0.95), 0.0, 1.0);
 
-      // Mitad izquierda = costilla cruda; mitad derecha = costilla cocida
-      vec2 rawUv = vec2(baseUv.x * 0.484 + 0.006, sampleY);
-      vec2 cookedUv = vec2(baseUv.x * 0.484 + 0.506, sampleY);
-
-      vec3 rawCol = texture2D(map, rawUv).rgb;
-      vec3 cookedCol = texture2D(map, cookedUv).rgb;
-
-      // Realce de carne vacuna fresca y veteado de grasa blanca cremosa
-      rawCol = pow(max(rawCol, vec3(0.01)), vec3(0.76)) * vec3(1.20, 0.98, 0.94);
-      rawCol = clamp(rawCol, 0.0, 1.0);
-
-      float fatMask = smoothstep(0.30, 0.68, min(rawCol.r, min(rawCol.g, rawCol.b)));
-      float marbleNoise = costillaNoise(baseUv * vec2(14.0, 18.0)) * 0.65
-        + costillaNoise(baseUv * vec2(34.0, 42.0)) * 0.35;
-
+      float fatMask = smoothstep(0.16, 0.45, min(rawCol.r, min(rawCol.g, rawCol.b)));
+      float marbleNoise = mtNoise(baseUv * vec2(14.0, 18.0)) * 0.65 + mtNoise(baseUv * vec2(34.0, 42.0)) * 0.35;
       ${edge ? `
-        // Vetas horizontales de grasa e intercostales propias de la tira de asado / costillar
+        // Vetas horizontales de grasa intercostal y capa de grasa superior propias de la tira
         float wave = sin(baseUv.x * 28.0) * 0.03 + (marbleNoise - 0.5) * 0.06;
         float midFatBand = smoothstep(0.30, 0.38, costillaHeight + wave)
           * (1.0 - smoothstep(0.42, 0.50, costillaHeight + wave));
         float topFatCap = smoothstep(0.72, 0.85, costillaHeight + wave * 0.8);
         float edgeFat = clamp(midFatBand * 0.78 + topFatCap * 0.92, 0.0, 1.0);
-        rawCol = mix(rawCol, vec3(0.95, 0.89, 0.79), edgeFat * 0.88);
+        rawCol = mix(rawCol, vec3(0.86, 0.76, 0.62), edgeFat * 0.85);
         fatMask = max(fatMask, edgeFat);
       ` : `
-        // En la cara superior (B) acentuamos la cobertura de grasa veteada; en la cara ósea (A) la membrana intercostal
+        // Cara B: cobertura de grasa veteada; cara A (ósea): membrana intercostal más fina
         float surfaceFat = smoothstep(0.55, 0.82, marbleNoise + ${side === 'b' ? '0.16' : '-0.04'});
-        rawCol = mix(rawCol, vec3(0.96, 0.90, 0.80), surfaceFat * ${side === 'b' ? '0.44' : '0.22'});
-        fatMask = max(fatMask, surfaceFat);
+        rawCol = mix(rawCol, vec3(0.88, 0.78, 0.64), surfaceFat * ${side === 'b' ? '0.44' : '0.22'});
+        fatMask = max(fatMask, surfaceFat * 0.8);
       `}
-
-      // Re-graduamos la textura cocida para lograr una tonalidad doradita ámbar / bronce asado en vez de marrón oscuro
-      vec3 liftedCooked = pow(max(cookedCol, vec3(0.02)), vec3(0.58)) * vec3(1.44, 1.20, 0.82);
-      float cookedLuma = clamp(dot(liftedCooked, vec3(0.33, 0.50, 0.17)), 0.0, 1.0);
-      vec3 goldenRoast = mix(
-        vec3(0.58, 0.32, 0.11),
-        vec3(0.91, 0.61, 0.23),
-        smoothstep(0.10, 0.86, cookedLuma * 0.72 + marbleNoise * 0.28)
-      );
-      vec3 goldenCooked = mix(liftedCooked, goldenRoast, 0.66);
-
-      // Dorado miel crocante en la grasa intercostal y de cobertura (Maillard)
-      vec3 crispyFat = mix(vec3(0.86, 0.58, 0.20), vec3(0.96, 0.74, 0.34), marbleNoise);
-      goldenCooked = mix(goldenCooked, crispyFat, fatMask * 0.74);
-
-      // Transición térmica inicial (sellado cálido hacia dorado suave)
-      float luma = dot(rawCol, vec3(0.30, 0.59, 0.11));
-      vec3 warmSeal = mix(vec3(0.78, 0.52, 0.32), vec3(0.94, 0.80, 0.50), fatMask);
-      vec3 searedRaw = mix(rawCol, mix(vec3(luma) * vec3(1.16, 1.00, 0.84), warmSeal, 0.52), costillaSet * 0.46);
-
-      // Progresión continua: crudo -> dorado manteca/ámbar claro -> dorado parrillero intenso
-      float cookT = smoothstep(0.0, 1.0, costillaCook);
-      vec3 midGolden = mix(searedRaw, mix(goldenCooked, vec3(0.89, 0.63, 0.29), 0.38), smoothstep(0.0, 0.55, cookT));
-      vec3 meatColor = mix(midGolden, goldenCooked, smoothstep(0.28, 1.0, cookT));
-
-      // Marcas orgánicas caramelizadas (ámbar tostado) de los hierros de la parrilla en las caras principales
-      ${!edge ? `
-        float grillWave = abs(sin((baseUv.x * 7.5 + (marbleNoise - 0.5) * 0.12) * 3.14159265));
-        float grillBar = (1.0 - smoothstep(0.0, 0.15, grillWave)) * smoothstep(0.24, 0.88, cookT);
-        meatColor = mix(meatColor, vec3(0.45, 0.24, 0.08), grillBar * 0.25);
-      ` : ''}
-
-      // Carbonizado progresivo e irregular solo por exceso real de fuego
-      float charNoise = costillaNoise(baseUv * vec2(11.0, 13.0)) * 0.65
-        + costillaNoise(baseUv * 31.0 + vec2(4.2, 8.7)) * 0.35;
-      float charMask = smoothstep(0.26, 0.94, costillaBurn + (charNoise - 0.5) * 0.42 * costillaBurn);
-      meatColor = mix(meatColor, vec3(0.025, 0.016, 0.011), charMask);
-
-      diffuseColor.rgb *= meatColor;
+      ${flatFinishGlsl('costillaCook', 'costillaBurn', 'costillaSet', edge)}
     `);
 
-    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
-      #include <roughnessmap_fragment>
-      roughnessFactor *= 1.0 - fatMask * 0.26 * (1.0 - charMask);
-      roughnessFactor = mix(roughnessFactor, 0.94, charMask);
-    `);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', MEAT_ROUGHNESS_GLSL);
   };
 
-  material.customProgramCacheKey = () => `costilla-surface-${side}-${edge}-v4`;
+  material.customProgramCacheKey = () => `costilla-surface-${side}-${edge}-v5`;
 
   return {
     material,
+    uniforms,
     update(meat) {
       if(!meat.hasReceivedGrillHeat && meat.totalSimSeconds === 0 && meat.brown.a === 0 && meat.brown.b === 0) {
         sideHeat = 0;
@@ -206,16 +154,12 @@ function surfaceMaterial(side: Side, thickness: number, edge = false): {
 
       const brownProgress = THREE.MathUtils.clamp(sideBrown / 38, 0, 1);
       const thermalProgress = THREE.MathUtils.clamp((layerC - 28) / 48, 0, 1);
-      cook.value = THREE.MathUtils.clamp(
-        Math.max(brownProgress, sideHeat, thermalProgress * 0.58 + brownProgress * 0.52),
-        0,
-        1
-      );
+      cook.value = cookWithDepth(Math.max(brownProgress, sideHeat, thermalProgress * 0.58 + brownProgress * 0.52), sideBrown);
       burn.value = THREE.MathUtils.clamp(sideBurn / 100, 0, 1);
       set.value = THREE.MathUtils.clamp((layerC - 26) / 38, 0, 1);
 
-      material.roughness = (side === 'a' ? 0.48 : 0.44) - cook.value * 0.10 + dryness * 0.20 + burn.value * 0.28;
-      material.clearcoat = (0.24 + cook.value * 0.12) * (1 - dryness * 0.72) * (1 - burn.value * 0.85);
+      material.roughness = (side === 'a' ? 0.56 : 0.53) - Math.min(1, cook.value) * 0.10 + dryness * 0.20 + burn.value * 0.28;
+      material.clearcoat = (0.24 + Math.min(1, cook.value) * 0.12) * (1 - dryness * 0.72) * (1 - burn.value * 0.85);
     }
   };
 }
@@ -358,21 +302,6 @@ export function createCostillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
   };
   const edge = surfaceMaterial('a', d.thicknessM, true);
 
-  const boneMat = new THREE.MeshPhysicalMaterial({
-    name: 'costilla-bone-cortex',
-    color: 0xefe6cf,
-    roughness: 0.58,
-    metalness: 0,
-    clearcoat: 0.14,
-    clearcoatRoughness: 0.45,
-  });
-
-  const marrowMat = new THREE.MeshStandardMaterial({
-    name: 'costilla-bone-marrow',
-    color: 0x8f3d34,
-    roughness: 0.86,
-  });
-
   const pickMeshes: THREE.Mesh[] = [];
 
   function registerMesh(part: THREE.Mesh): THREE.Mesh {
@@ -399,6 +328,8 @@ export function createCostillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
   const ribLength = size.depthM * 1.03;
 
   const ribGeo = createRibBoneGeometry(ribWidth, ribHeight, ribLength);
+  const bones = createCostillaBoneMaterials(ribLength * 0.5);
+  const marks = new GrillMarkTracker();
   const capOuterGeo = new THREE.CylinderGeometry(ribWidth * 0.44, ribWidth * 0.44, 0.002, 12);
   capOuterGeo.rotateX(Math.PI / 2);
   capOuterGeo.scale(1, (ribHeight / ribWidth) * 0.82, 1);
@@ -411,7 +342,7 @@ export function createCostillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
     const xPos = (i + 0.5) / boneCount * size.widthM - size.widthM / 2;
     const yPos = d.thicknessM * 0.24;
 
-    const rib = registerMesh(new THREE.Mesh(ribGeo, boneMat));
+    const rib = registerMesh(new THREE.Mesh(ribGeo, bones.bone));
     rib.name = `costilla-rib-${i}`;
     rib.position.set(xPos, yPos, 0);
 
@@ -420,18 +351,18 @@ export function createCostillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
       const zEnd = sign * (ribLength * 0.495);
       const yEnd = yPos - ribHeight * 0.11;
 
-      const cortexCap = registerMesh(new THREE.Mesh(capOuterGeo, boneMat));
+      const cortexCap = registerMesh(new THREE.Mesh(capOuterGeo, bones.cap));
       cortexCap.position.set(xPos, yEnd, zEnd);
 
-      const marrowCap = registerMesh(new THREE.Mesh(capMarrowGeo, marrowMat));
+      const marrowCap = registerMesh(new THREE.Mesh(capMarrowGeo, bones.marrow));
       marrowCap.position.set(xPos, yEnd, zEnd + sign * 0.0003);
     }
   }
 
   if (meat.portion) {
-    const bones = pickMeshes.slice(1);
-    clipFoodDetails(bones, meat.portion, boneMat);
-    pickMeshes.splice(1, pickMeshes.length - 1, ...bones);
+    const boneMeshes = pickMeshes.slice(1);
+    clipFoodDetails(boneMeshes, meat.portion, bones.cap);
+    pickMeshes.splice(1, pickMeshes.length - 1, ...boneMeshes);
   }
   return {
     group,
@@ -445,23 +376,10 @@ export function createCostillaVisual(meat: MeatModel, scaleX: number, scaleZ: nu
       surfaces.b.update(meat);
       edge.update(meat);
 
-      const layerAvg = (meat.layersC[0] + meat.layersC[4]) * 0.5;
-      const thermalRatio = THREE.MathUtils.clamp((layerAvg - 28) / 50, 0, 1);
-      const cookRatio = THREE.MathUtils.clamp(
-        Math.max((meat.brown.a + meat.brown.b) / 76, thermalRatio * 0.65),
-        0,
-        1
-      );
-      const burnRatio = THREE.MathUtils.clamp(Math.max(meat.burn.a, meat.burn.b) / 100, 0, 1);
-
-      boneMat.color.set(0xf3ead4)
-        .lerp(new THREE.Color(0xd69b4e), cookRatio)
-        .lerp(new THREE.Color(0x281d14), burnRatio);
-      boneMat.roughness = 0.56 - cookRatio * 0.08 + burnRatio * 0.32;
-
-      marrowMat.color.set(0x983e35)
-        .lerp(new THREE.Color(0x6e3d20), cookRatio)
-        .lerp(new THREE.Color(0x160f0b), burnRatio);
+      marks.update(meat.brown, meat.quarterTurns);
+      updateFaceMarks(surfaces.a.uniforms, marks, 'a', meat.burn.a);
+      updateFaceMarks(surfaces.b.uniforms, marks, 'b', meat.burn.b);
+      bones.update(meat);
 
       group.scale.setScalar(meat.location === 'carried' ? 0.65 : 1);
       for(const part of pickMeshes) part.userData.enabled = meat.location !== 'carried';

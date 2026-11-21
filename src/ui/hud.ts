@@ -10,7 +10,8 @@ import { describeMeat } from './cooking-card.ts';
 import { MEAT_CATALOG } from '../sim/meatCatalog.ts';
 import { CLIENT_SEATS, donenessShortLabel, estimateOrderTip } from '../ai/client-brain.ts';
 
-export type HudState = { activeTool: number; preparationTool?: PreparationTool | null; target: InteractionTarget | null };
+export type HudState = { activeTool: number; preparationTool?: PreparationTool | null; target: InteractionTarget | null; day?: { hour: string; weather: string; night: boolean } };
+export type ShiftSummary = { subtitle: string; score: number; tips: number; served: number; lost: number; bags: number; closedAt: string; rank: string };
 
 const CONTROLS_KEY = 'asado-controles-ocultos';
 const MESSAGE_SECONDS = 6;
@@ -23,8 +24,13 @@ export function createHud(app: HTMLElement, initialMessage: string) {
     return element;
   };
   let debugEnabled = false;
-  let lastMsg = initialMessage;
+  // Último mensaje del mundo ya mostrado y último cartel que se mostró (pueden venir del perro o los comensales).
+  let lastWorldMsg = initialMessage;
+  const recentFlashes: string[] = [initialMessage];
+  const remember = (message: string): void => { recentFlashes.push(message); if (recentFlashes.length > 6) recentFlashes.shift(); };
   let started = false;
+  /** Resumen de cierre abierto: al soltar el mouse se muestra en lugar de la pausa. */
+  let summaryOpen = false;
   let messageTimer = 0;
 
   // Mensajes: aparecen abajo y se van solos, para no tapar el juego.
@@ -52,13 +58,14 @@ export function createHud(app: HTMLElement, initialMessage: string) {
 
   // Menús: inicio, pausa lateral y hojas de ayuda / créditos.
   const overlay = $('overlay');
-  const showView = (view: 'start' | 'pause') => { overlay.dataset.view = view; closeSheets(); };
+  const showView = (view: 'start' | 'pause' | 'summary') => { overlay.dataset.view = view; closeSheets(); };
   const closeSheets = () => { $('help').hidden = true; $('credits').hidden = true; };
   overlay.querySelectorAll<HTMLElement>('[data-open]').forEach(b => b.addEventListener('click', () => {
     closeSheets(); $(b.dataset.open as string).hidden = false;
   }));
   overlay.querySelectorAll<HTMLElement>('[data-close]').forEach(b => b.addEventListener('click', closeSheets));
   $('to-start').addEventListener('click', () => showView('start'));
+  $('summary-to-start').addEventListener('click', () => { summaryOpen = false; showView('start'); });
 
   // Ficha de cocción: solo visible en modo entrenamiento (en modo clientes se evalúa a ojo como un asador experto).
   function renderMeatCard(world: SimulationWorld, target: InteractionTarget | null): void {
@@ -211,7 +218,12 @@ export function createHud(app: HTMLElement, initialMessage: string) {
     const grillPill = `<span class="status-pill">♨️ Parrilla: ${world.grill.emberCount} brasa${world.grill.emberCount === 1 ? '' : 's'}</span>`;
     const prepPill = state.preparationTool
       ? `<span class="status-pill lit">${preparationToolName(state.preparationTool)} · Clic + arrastrar</span>` : '';
-    $('hud-status').innerHTML = `${brazierPill}${trayPill}${grillPill}${prepPill}`;
+    const trash = world.trash;
+    const trashIcon = trash.level === 'insoportable' ? '🤢' : trash.level === 'fuerte' ? '🪰' : '🗑️';
+    const trashPill = trash.fill > 0 || trash.smell >= 0.2
+      ? `<span class="status-pill${trash.smell >= 0.5 ? ' warn' : ''}">${trashIcon} Basura ${Math.round(trash.fillRatio * 100)} %${trash.smell >= 0.2 ? ` · olor ${trash.level}` : ''}</span>` : '';
+    const dayPill = state.day ? `<span class="status-pill">${state.day.night ? '🌙' : '🕓'} ${state.day.hour} · ${state.day.weather}</span>` : '';
+    $('hud-status').innerHTML = `${dayPill}${brazierPill}${trayPill}${grillPill}${trashPill}${prepPill}`;
 
     const target = state.target;
     const kind = target?.kind as TargetKind | undefined;
@@ -220,7 +232,11 @@ export function createHud(app: HTMLElement, initialMessage: string) {
       ? state.preparationTool.kind === 'knife' ? 'Arrastrá para marcar el corte · Soltá para cortar · [3] Pinza'
         : `${preparationToolName(state.preparationTool)} · Arrastrá sobre la zona a condimentar · [3] Pinza` : null;
     $('target').innerHTML = prepHint ? formatTargetHtml(prepHint) : kind ? formatTargetHtml(targetName(kind, target?.index)) : '';
-    if (world.message !== lastMsg) { lastMsg = world.message; flash(world.message); }
+    if (world.message !== lastWorldMsg) {
+      lastWorldMsg = world.message;
+      // Si el mismo texto ya se mostró por otra vía, no se repite ni tapa un aviso más nuevo.
+      if (!recentFlashes.includes(world.message)) { remember(world.message); flash(world.message); }
+    }
     renderMeatCard(world, target);
     renderOrdersPanel(world);
     if (debugEnabled) {
@@ -248,17 +264,32 @@ export function createHud(app: HTMLElement, initialMessage: string) {
     }
   }
   return { update,
-    showMessage(message: string): void { lastMsg = message; flash(message); },
+    showMessage(message: string): void { remember(message); flash(message); },
     toggleDebug(): void { debugEnabled = !debugEnabled; $('debug').hidden = !debugEnabled; },
     setPlaying(playing: boolean): void {
       if(playing) started = true;
       document.body.classList.toggle('playing', playing);
       overlay.style.display = playing ? 'none' : 'block';
-      if(!playing) showView(started ? 'pause' : 'start');
+      if(playing) summaryOpen = false;
+      if(!playing) showView(summaryOpen ? 'summary' : started ? 'pause' : 'start');
+    },
+    /** Muestra el resumen del cierre de la jornada (Modo Clientes). */
+    showShiftSummary(summary: ShiftSummary): void {
+      summaryOpen = true;
+      $('summary-sub').textContent = summary.subtitle;
+      $('summary-stats').innerHTML = [
+        ['Puntaje', `${summary.score} pts`], ['Propinas', `$${summary.tips.toLocaleString('es-AR')}`],
+        ['Atendidos', String(summary.served)], ['Se fueron sin comer', String(summary.lost)],
+        ['Bolsas de basura', String(summary.bags)], ['Hora de cierre', summary.closedAt],
+      ].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('') + `<div class="wide"><span>Rango</span><b>${summary.rank}</b></div>`;
+      document.body.classList.remove('playing');
+      overlay.style.display = 'block';
+      showView('summary');
     },
     onPlay(action: (mode?: 'training' | 'clients') => void): () => void {
       const onTraining = () => action('training');
       const onClients = () => action('clients');
+      $('again').addEventListener('click', onClients);
       const onResume = () => action();
       $('play').addEventListener('click', onTraining);
       $('play-clients').addEventListener('click', onClients);
@@ -267,6 +298,7 @@ export function createHud(app: HTMLElement, initialMessage: string) {
         $('play').removeEventListener('click', onTraining);
         $('play-clients').removeEventListener('click', onClients);
         $('resume').removeEventListener('click', onResume);
+        $('again').removeEventListener('click', onClients);
         window.removeEventListener('keydown', onKey);
       };
     },

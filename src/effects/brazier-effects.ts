@@ -7,6 +7,8 @@ import { createFuelModel } from '../art/fuel-model.ts';
 import { createFireLighting } from '../lighting/lighting.ts';
 import { createFuelFlames } from './fuel-flames.ts';
 import { createEmberScatter, type EmberScatter } from './ember-scatter.ts';
+import { createSmokeSystem, HOOD_DRAFT } from './smoke.ts';
+import { brazierSmoke } from './smoke-sources.ts';
 
 export function createBrazier(scene: THREE.Scene, clickable: THREE.Object3D[], placement?: Parameters<typeof createBrazierModel>[2]) {
   const { root, groundTarget, paper, paperMaterial, brazierContents, trayContents } = createBrazierModel(scene, clickable, placement);
@@ -28,6 +30,13 @@ export function createBrazier(scene: THREE.Scene, clickable: THREE.Object3D[], p
   const flame = flames[0];
   flame.name = 'tinder-fire';
   const lighting = createFireLighting(root);
+  // Humo: bocanada densa al prender papel y leña, hilo fino cuando todo es brasa.
+  const smoke = createSmokeSystem(scene, {
+    capacity: 150, maxRate: 16, life: 5.0, size: [0.2, 1.15], rise: 0.6, spread: 0.12, opacity: 0.28,
+    draft: HOOD_DRAFT, ceilingY: 3.7,
+  });
+  const smokeOrigin = new THREE.Vector3();
+  let previousElapsed: number | null = null;
 
   type FuelVisual = ReturnType<typeof makeFuel>;
   const fuelVisuals = new Map<number, FuelVisual>();
@@ -147,6 +156,16 @@ export function createBrazier(scene: THREE.Scene, clickable: THREE.Object3D[], p
       mesh.rotation.z = Math.sin(elapsedReal * 7 + i) * 0.10;
     });
     lighting.update(world.brazier, elapsedReal);
+    const dt = previousElapsed === null ? 0 : Math.min(0.1, Math.max(0, elapsedReal - previousElapsed));
+    previousElapsed = elapsedReal;
+    const slotsPerLayer = CONFIG.brazierPileColumns * CONFIG.brazierPileRows;
+    const topLayer = world.brazier.fuel.reduce((top, piece) => Math.max(top, Math.floor(piece.slot / slotsPerLayer)), -1);
+    // Nace sobre lo más alto del brasero: la última capa de combustible o el papel.
+    smokeOrigin.set(0, topLayer >= 0 ? 1.02 + topLayer * 0.19 : 0.72, 0);
+    root.updateWorldMatrix(true, false);
+    root.localToWorld(smokeOrigin);
+    smoke.emit('brasero', smokeOrigin, brazierSmoke(world.brazier), dt);
+    smoke.update(dt, elapsedReal);
   }
-  return { brazierContents, trayContents, flame, fireLight: lighting.light, updateVisuals };
+  return { brazierContents, trayContents, flame, fireLight: lighting.light, smoke, updateVisuals };
 }

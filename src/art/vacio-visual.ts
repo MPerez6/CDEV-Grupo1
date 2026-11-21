@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import type { MeatModel, Side } from '../sim/meat.ts';
 import type { MeatVisual } from './meat-visual.ts';
 import { createMeatSurfaceGeometry } from './meat-surface-geometry.ts';
+import {
+  GrillMarkTracker, MEAT_ROUGHNESS_GLSL, cookWithDepth, createMeatUniforms, flatFinishGlsl, injectMeatCommon,
+  updateFaceMarks, withMeatEnvironment, type MeatShadingUniforms,
+} from './meat-shading.ts';
 
 // A = fibras; B = membrana/cuero. La cara B queda arriba al iniciar la pieza.
 export const VACIO_FACES = { a: 'Fibras y grasa', b: 'Cuero / membrana' } as const;
@@ -38,15 +42,16 @@ function textureSet(): { map: THREE.Texture; cooked: THREE.Texture; bumps: Recor
 }
 
 function surfaceMaterial(side: Side, thickness: number, edge = false): {
-  material: THREE.MeshPhysicalMaterial; update: (meat: MeatModel) => void;
+  material: THREE.MeshPhysicalMaterial; uniforms: MeatShadingUniforms; update: (meat: MeatModel) => void;
 } {
   const textures = textureSet();
-  const material = new THREE.MeshPhysicalMaterial({
+  const material = withMeatEnvironment(new THREE.MeshPhysicalMaterial({
     name: edge ? 'vacio-muscle-edge' : `vacio-${side === 'b' ? 'membrane' : 'fibers'}`,
     map: textures.map, bumpMap: textures.bumps[side], bumpScale: side === 'b' ? 0.00028 : 0.00045,
     color: 0xffffff, metalness: 0, roughness: side === 'b' ? 0.49 : 0.56,
     clearcoat: side === 'b' ? 0.19 : 0.12, clearcoatRoughness: 0.42, ior: 1.4, side: THREE.DoubleSide,
-  });
+  }));
+  const uniforms = createMeatUniforms();
   const cook = { value: 0 }, burn = { value: 0 }, set = { value: 0 };
   material.userData.vacioFace = edge ? 'edge' : side;
   material.userData.rawAtlasTile = side === 'b' ? 0 : 1;
@@ -54,6 +59,7 @@ function surfaceMaterial(side: Side, thickness: number, edge = false): {
   material.onBeforeCompile = shader => {
     shader.uniforms.vacioCook = cook; shader.uniforms.vacioBurn = burn; shader.uniforms.vacioSet = set;
     shader.uniforms.vacioCookedMap = { value: textures.cooked };
+    injectMeatCommon(shader, uniforms, true);
     shader.vertexShader = 'varying float vacioHeight;\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
       #include <begin_vertex>
@@ -64,12 +70,6 @@ function surfaceMaterial(side: Side, thickness: number, edge = false): {
       uniform float vacioSet;
       uniform sampler2D vacioCookedMap;
       varying float vacioHeight;
-      float vacioHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float vacioNoise(vec2 p) {
-        vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-        return mix(mix(vacioHash(i), vacioHash(i + vec2(1.0, 0.0)), f.x),
-          mix(vacioHash(i + vec2(0.0, 1.0)), vacioHash(i + vec2(1.0)), f.x), f.y);
-      }
     ` + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
       vec2 vacioUv = clamp(vMapUv, vec2(0.002), vec2(0.998));
@@ -83,27 +83,22 @@ function surfaceMaterial(side: Side, thickness: number, edge = false): {
         vacioRaw = mix(vacioRaw, vec3(0.72, 0.59, 0.45), vacioFatBand * 0.88);
         vacioRoast = mix(vacioRoast, vec3(0.44, 0.23, 0.07), vacioFatBand * 0.65);
       ` : ''}
-      float vacioFat = smoothstep(0.24, 0.66, min(vacioRaw.r, min(vacioRaw.g, vacioRaw.b)));
-      float vacioLuma = dot(vacioRaw, vec3(0.3, 0.59, 0.11));
-      vec3 vacioOpaque = mix(vacioRaw, vec3(vacioLuma) * vec3(1.12, 0.94, 0.85), vacioSet * 0.32);
-      vec3 vacioColor = mix(vacioOpaque, vacioRoast, smoothstep(0.0, 1.0, vacioCook));
-      float vacioMottle = vacioNoise(vacioUv * 13.0) * 0.7 + vacioNoise(vacioUv * 37.0) * 0.3;
-      float vacioChar = smoothstep(vacioMottle * 0.65, vacioMottle * 0.65 + 0.35, vacioBurn);
-      vacioColor = mix(vacioColor, vec3(0.017, 0.009, 0.005), vacioChar * 0.95);
-      diffuseColor.rgb *= vacioColor;
+      vec3 rawCol = vacioRaw, cookedCol = vacioRoast;
+      // Grasa y cuero claros: brillan crudos y se acaramelan al dorarse
+      float fatMask = smoothstep(0.24, 0.66, min(vacioRaw.r, min(vacioRaw.g, vacioRaw.b)));
+      ${edge ? 'fatMask = max(fatMask, vacioFatBand);' : ''}
+      ${flatFinishGlsl('vacioCook', 'vacioBurn', 'vacioSet', edge)}
     `);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
-      #include <roughnessmap_fragment>
-      roughnessFactor *= 1.0 - vacioFat * 0.18;
-    `);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', MEAT_ROUGHNESS_GLSL);
   };
-  material.customProgramCacheKey = () => `vacio-raw-cooked-${side}-${edge}-v2`;
+  material.customProgramCacheKey = () => `vacio-raw-cooked-${side}-${edge}-v3`;
   return {
-    material, update(meat) {
-      cook.value = THREE.MathUtils.clamp((edge ? (meat.brown.a + meat.brown.b) / 2 : meat.brown[side]) / 60, 0, 1);
+    material, uniforms, update(meat) {
+      const brown = edge ? (meat.brown.a + meat.brown.b) / 2 : meat.brown[side];
+      cook.value = cookWithDepth(brown / 60, brown);
       burn.value = THREE.MathUtils.clamp((edge ? Math.max(meat.burn.a, meat.burn.b) : meat.burn[side]) / 100, 0, 1);
       set.value = THREE.MathUtils.clamp((meat.layersC[side === 'a' ? 0 : 4] - 35) / 45, 0, 1);
-      material.roughness = (side === 'b' ? 0.49 : 0.56) - cook.value * 0.08 + burn.value * 0.3;
+      material.roughness = (side === 'b' ? 0.49 : 0.56) - Math.min(1, cook.value) * 0.08 + burn.value * 0.3;
     }
   };
 }
@@ -122,6 +117,7 @@ export function createVacioVisual(meat: MeatModel, scaleX: number, scaleZ: numbe
   group.add(projection); projection.add(orientation); orientation.add(body);
   const materials = { a: surfaceMaterial('a', meat.definition.thicknessM), b: surfaceMaterial('b', meat.definition.thicknessM) };
   const edge = surfaceMaterial('a', meat.definition.thicknessM, true);
+  const marks = new GrillMarkTracker();
   const mesh = new THREE.Mesh(createVacioGeometry(meat), [materials.a.material, materials.b.material, edge.material]);
   mesh.name = 'vacio-organic-volume'; mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.userData.kind = 'meat'; mesh.userData.meatId = meat.id;
@@ -132,6 +128,9 @@ export function createVacioVisual(meat: MeatModel, scaleX: number, scaleZ: numbe
       body.rotation.x = meat.faceDown === 'a' ? 0 : Math.PI;
       body.position.y = meat.faceDown === 'a' ? 0 : meat.definition.thicknessM;
       materials.a.update(meat); materials.b.update(meat); edge.update(meat);
+      marks.update(meat.brown, meat.quarterTurns);
+      updateFaceMarks(materials.a.uniforms, marks, 'a', meat.burn.a);
+      updateFaceMarks(materials.b.uniforms, marks, 'b', meat.burn.b);
       group.scale.setScalar(meat.location === 'carried' ? 0.65 : 1);
       mesh.userData.enabled = meat.location !== 'carried';
     }
